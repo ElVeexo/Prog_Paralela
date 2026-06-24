@@ -2,13 +2,15 @@ CXX := g++
 CC := gcc
 NVCC := nvcc
 
-CXXFLAGS := -std=c++17 -O2 -Wall -Wextra -Iinclude -Isrc
-CFLAGS := -O2 -Wall -Wextra -Iinclude
-NVCCFLAGS := -std=c++17 -O2 -Iinclude -Isrc
+PROJECT_DIR := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
+BUILD_DIR := $(PROJECT_DIR)/build
+INCLUDES := -I$(PROJECT_DIR)/include -I$(PROJECT_DIR)/src
+
+CXXFLAGS := -std=c++17 -O2 -Wall -Wextra $(INCLUDES)
+CFLAGS := -O2 -Wall -Wextra $(INCLUDES)
+NVCCFLAGS := -std=c++17 -O2 $(INCLUDES)
 GL_LIBS := -lglfw -lGL -ldl -lpthread -lm
 CL_LIBS := -lOpenCL
-
-BUILD_DIR := build
 
 .PHONY: all all3 cuda runCPU runGPU runCUDA install-deps-ubuntu install-cuda-ubuntu check-opencl check-cuda clean
 
@@ -21,26 +23,26 @@ cuda: $(BUILD_DIR)/sandboxCUDA
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
 
-$(BUILD_DIR)/glad.o: src/glad.c | $(BUILD_DIR)
+$(BUILD_DIR)/glad.o: $(PROJECT_DIR)/src/glad.c | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD_DIR)/sandboxCPU: src/mainCPU.cpp $(BUILD_DIR)/glad.o include/config.hpp include/particles.hpp src/gl_utils.hpp src/render_utils.hpp | $(BUILD_DIR)
-	$(CXX) $(CXXFLAGS) src/mainCPU.cpp $(BUILD_DIR)/glad.o -o $@ $(GL_LIBS)
+$(BUILD_DIR)/sandboxCPU: $(PROJECT_DIR)/src/mainCPU.cpp $(BUILD_DIR)/glad.o $(PROJECT_DIR)/include/config.hpp $(PROJECT_DIR)/include/particles.hpp $(PROJECT_DIR)/src/gl_utils.hpp $(PROJECT_DIR)/src/render_utils.hpp | $(BUILD_DIR)
+	$(CXX) $(CXXFLAGS) $(PROJECT_DIR)/src/mainCPU.cpp $(BUILD_DIR)/glad.o -o $@ $(GL_LIBS)
 
-$(BUILD_DIR)/sandboxGPU: src/main.cpp $(BUILD_DIR)/glad.o include/config.hpp include/particles.hpp src/gl_utils.hpp src/render_utils.hpp src/opencl_utils.hpp kernels/kernel.cl | $(BUILD_DIR)
-	$(CXX) $(CXXFLAGS) src/main.cpp $(BUILD_DIR)/glad.o -o $@ $(GL_LIBS) $(CL_LIBS)
+$(BUILD_DIR)/sandboxGPU: $(PROJECT_DIR)/src/main.cpp $(BUILD_DIR)/glad.o $(PROJECT_DIR)/include/config.hpp $(PROJECT_DIR)/include/particles.hpp $(PROJECT_DIR)/src/gl_utils.hpp $(PROJECT_DIR)/src/render_utils.hpp $(PROJECT_DIR)/src/opencl_utils.hpp $(PROJECT_DIR)/kernels/kernel.cl | $(BUILD_DIR)
+	$(CXX) $(CXXFLAGS) $(PROJECT_DIR)/src/main.cpp $(BUILD_DIR)/glad.o -o $@ $(GL_LIBS) $(CL_LIBS)
 
-$(BUILD_DIR)/sandboxCUDA: src/mainCUDA.cu $(BUILD_DIR)/glad.o include/config.hpp include/particles.hpp src/gl_utils.hpp src/render_utils.hpp | $(BUILD_DIR)
-	$(NVCC) $(NVCCFLAGS) src/mainCUDA.cu $(BUILD_DIR)/glad.o -o $@ $(GL_LIBS)
+$(BUILD_DIR)/sandboxCUDA: $(PROJECT_DIR)/src/mainCUDA.cu $(BUILD_DIR)/glad.o $(PROJECT_DIR)/include/config.hpp $(PROJECT_DIR)/include/particles.hpp $(PROJECT_DIR)/src/gl_utils.hpp $(PROJECT_DIR)/src/render_utils.hpp | $(BUILD_DIR)
+	$(NVCC) $(NVCCFLAGS) $(PROJECT_DIR)/src/mainCUDA.cu $(BUILD_DIR)/glad.o -o $@ $(GL_LIBS)
 
 runCPU: $(BUILD_DIR)/sandboxCPU
-	./$(BUILD_DIR)/sandboxCPU
+	cd $(PROJECT_DIR) && $(BUILD_DIR)/sandboxCPU
 
 runGPU: $(BUILD_DIR)/sandboxGPU
-	./$(BUILD_DIR)/sandboxGPU
+	cd $(PROJECT_DIR) && $(BUILD_DIR)/sandboxGPU
 
 runCUDA: $(BUILD_DIR)/sandboxCUDA
-	./$(BUILD_DIR)/sandboxCUDA
+	cd $(PROJECT_DIR) && $(BUILD_DIR)/sandboxCUDA
 
 install-deps-ubuntu:
 	sudo apt-get update

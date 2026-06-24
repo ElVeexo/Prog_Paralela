@@ -5,7 +5,7 @@ layout (location = 1) in float aRadius;
 layout (location = 2) in int aType;
 layout (location = 3) in float aEnergy;
 
-out flat int vType;
+flat out int vType;
 out float vEnergy;
 
 uniform float uPointScale;
@@ -17,4 +17,3 @@ void main()
     vType = aType;
     vEnergy = aEnergy;
 }
-

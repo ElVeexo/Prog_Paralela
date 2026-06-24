@@ -1,6 +1,6 @@
 #version 330 core
 
-in flat int vType;
+flat in int vType;
 in float vEnergy;
 
 out vec4 FragColor;
@@ -30,4 +30,3 @@ void main()
 
     FragColor = vec4(color, alpha);
 }
-
