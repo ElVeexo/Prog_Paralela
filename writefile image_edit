@@ -1,0 +1,181 @@
+%%writefile image_edit.cu
+#include <iostream>
+#include <fstream>
+#include <vector>
+#include <cuda_runtime.h>
+
+using namespace std;
+
+bool leerTXT(const string& filename, unsigned char*& data, int& width, int& height) {
+    ifstream file(filename);
+    if (!file) {
+        cerr << "Error abriendo archivo\n";
+        return false;
+    }
+    file >> width >> height;
+    int size = width * height * 3;
+    data = new unsigned char[size];
+    for (int i = 0; i < size; i++) {
+        int val;
+        file >> val;
+        data[i] = (unsigned char)val;
+    }
+    return true;
+}
+
+bool escribirTXT(const string& filename, unsigned char* data, int width, int height) {
+    ofstream file(filename);
+    if (!file) {
+        cerr << "Error escribiendo archivo\n";
+        return false;
+    }
+    file << width << " " << height << "\n";
+    int size = width * height * 3;
+    for (int i = 0; i < size; i++) {
+        file << (int)data[i] << " ";
+    }
+    return true;
+}
+
+// Implementación secuencial en CPU:
+bool filtro_en_CPU(unsigned char* input, unsigned char* output, int width, int height, int r, int K){
+  int size = width * height * 3;
+  int ventana = 2*r+1;
+  int divisor = ventana * ventana;
+
+  for (int i = 0; i < size; i++) {
+    int color = i % 3; // Si == 0 rojo, == 1 verde, == 2 azul
+    int pixel_actual = i / 3; //Dado que usamos el size incluyendo los pixeles separados por RGB
+    int x = pixel_actual % width; // Coordenada x sin rgb
+    int y = pixel_actual / width;
+    int suma = 0;
+
+    for (int j = -r; j <= r; j++) { // Iteración en y
+      for (int k = -r; k <= r; k++) { // Iteración en x
+        // Las siguientes coords son en base al pixel no separado en rgb
+        int x_f = x + k; // Coordenadas x del vecino
+        int y_f = y + j; // Coordenadas y del vecino
+
+        if (x_f < 0 || x_f >= width || y_f < 0 || y_f >= height) {
+          continue; // Los píxeles fuera de la imagen aportan 0.
+        }
+
+        int vecino = ((y_f * width + x_f) * 3) + color;
+        if (K == 0) {
+          suma = suma + input[vecino];
+        }
+        else { // K == 1
+          if (j == 0 && k == 0){ // El vecino es el mismo pixel
+            suma = suma + 8*input[vecino];
+          }
+          else{
+            suma = suma + input[vecino]*-1; // El vecino no es el mismo pixel, se multiplica por -1
+          }
+        }
+      }
+    }
+    int pixel = 0;
+    if (K == 0){ // K == 0 promedio simple
+      pixel = suma / divisor;
+    } else { // K == 1 edge detection
+      pixel = suma;
+    }
+    if (pixel > 255) {
+      pixel = 255;
+    } else if (pixel < 0) {
+      pixel = 0;
+    }
+    output[i] = pixel;
+  }
+  return true;
+}
+
+// Implementación A en GPU, cada hebra calcula su pixel individual:
+__global__ void kernel_GPU1(unsigned char* input, unsigned char* output, int size) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < size*size) {
+      
+    }
+}
+
+int main() {
+    cudaError_t err = cudaSuccess;
+    string inputFile = "input.txt";
+    string outputFile = "output.txt";
+    string outputFileCPU = "output_cpu.txt";
+
+    int width, height;
+    unsigned char* h_input = nullptr;
+    unsigned char* h_output = nullptr;
+    unsigned char* h_output_cpu = nullptr;
+
+    if (!leerTXT(inputFile, h_input, width, height)) {
+        return -1;
+    }
+    int numPixels = width * height;
+    int size = numPixels* 3;
+    h_output = new unsigned char[size];
+    h_output_cpu = new unsigned char[size];
+
+    unsigned char *d_input, *d_output;
+    err = cudaMalloc((void **)&d_input, size * sizeof(unsigned char) );
+	  if (err != cudaSuccess)
+	  {
+			fprintf(stderr, "Failed to allocate device d_input (error code %s)!\n", cudaGetErrorString(err));
+			exit(EXIT_FAILURE);
+	  }
+
+    err = cudaMalloc((void **)&d_output, size * sizeof(unsigned char) );
+	  if (err != cudaSuccess)
+	  {
+			fprintf(stderr, "Failed to allocate device d_output (error code %s)!\n", cudaGetErrorString(err));
+			exit(EXIT_FAILURE);
+	  }
+
+    err = cudaMemcpy(d_input, h_input, size * sizeof(unsigned char), cudaMemcpyHostToDevice);
+    if (err != cudaSuccess)
+    {
+        fprintf(stderr, "Failed to copy d_input from host to device (error code %s)!\n", cudaGetErrorString(err));
+        exit(EXIT_FAILURE);
+    }
+
+    int threads = 256;
+    int blocks = (numPixels + threads - 1) / threads;
+
+
+    int r = 1; // Tamaño de la ventana, se puede modificar para r = 1, 2 ,3.
+    int K = 1; // K = 0 para promedio simple, K = 1 para edge detection.
+
+    if (K == 0){
+      printf("Tamaño de ventana: %d, K modo: Promedio simple\n", 2*r+1);
+    }
+    else {
+      printf("Tamaño de ventana: %d, K modo: Edge Detection\n", 2*r+1);
+    }
+
+
+
+    filtro_en_CPU(h_input, h_output_cpu, width, height, r, K);
+    escribirTXT(outputFileCPU, h_output_cpu, width, height);
+
+    //kernel_GPU1<<<blocks, threads>>>(d_input, d_output, width, r, K);
+    cudaDeviceSynchronize();
+    err = cudaMemcpy(h_output, d_output, size * sizeof(unsigned char) , cudaMemcpyDeviceToHost);
+    if (err != cudaSuccess)
+    {
+        fprintf(stderr, "Failed to copy h_output from host to device (error code %s)!\n", cudaGetErrorString(err));
+        exit(EXIT_FAILURE);
+    }
+
+    escribirTXT(outputFile, h_output, width, height);
+
+    cudaFree(d_input);
+    cudaFree(d_output);
+    delete[] h_input;
+    delete[] h_output;
+    delete[] h_output_cpu;
+
+    cout << "Procesamiento RGB listo -> " << outputFile << " y " << outputFileCPU << endl;
+    return 0;
+
+}

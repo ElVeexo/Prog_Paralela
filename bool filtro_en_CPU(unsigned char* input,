@@ -1,0 +1,34 @@
+bool filtro_en_CPU(unsigned char* input, unsigned char* output, int width, int height, int r){
+  int size = width * height * 3;
+  int ventana = 2*r+1;
+  int divisor = ventana * ventana;
+
+  for (int i = 0; i < size; i++) {
+    int color = i % 3;
+    int pixel_actual = i / 3;
+    int x = pixel_actual % width;
+    int y = pixel_actual / width;
+    int suma = 0;
+
+    for (int j = -r; j <= r; j++) { // Iteración en y
+      for (int k = -r; k <= r; k++) { // Iteración en x
+        int x_f = x + k;
+        int y_f = y + j;
+
+        if (x_f < 0 || x_f >= width || y_f < 0 || y_f >= height) {
+          continue; // Los píxeles fuera de la imagen aportan 0.
+        }
+
+        int vecino = ((y_f * width + x_f) * 3) + color;
+        suma = suma + input[vecino];
+      }
+    }
+
+    int pixel = suma / divisor;
+    if (pixel > 255) {
+      pixel = 255;
+    }
+    output[i] = (unsigned char)pixel;
+  }
+  return true;
+}

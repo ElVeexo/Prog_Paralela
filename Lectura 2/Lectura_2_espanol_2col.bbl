@@ -1,0 +1,113 @@
+\begin{thebibliography}{10}
+
+\bibitem{ref1}
+Q.~Avril, V.~Gouranton, and B.~Arnaldi.
+\newblock Fast collision culling in large-scale environments using {GPU}
+  mapping function.
+\newblock In {\em EGPGV}, pages 71--80, 2012.
+
+\bibitem{ref3}
+M.~Gardner.
+\newblock The fantastic combinations of {John Conway}'s new solitaire game
+  ``life''.
+\newblock {\em Scientific American}, 223:120--123, October 1970.
+
+\bibitem{ref4}
+F.~Gustavson.
+\newblock New generalized data structures for matrices lead to a variety of
+  high performance algorithms.
+\newblock In R.~Wyrzykowski, J.~Dongarra, M.~Paprzycki, and J.~Wasniewski,
+  editors, {\em Parallel Processing and Applied Mathematics}, volume 2328 of
+  {\em Lecture Notes in Computer Science}, pages 418--436. Springer Berlin /
+  Heidelberg, 2006.
+
+\bibitem{ref5}
+J.~H. Jung and D.~P. O'Leary.
+\newblock Exploiting structure of symmetric or triangular matrices on a {GPU}.
+\newblock Technical report, 2008.
+
+\bibitem{ref6}
+J.~Kepner and J.~Gilbert.
+\newblock {\em Graph Algorithms in the Language of Linear Algebra}.
+\newblock Software, Environments, Tools. Society for Industrial and Applied
+  Mathematics, 2011.
+
+\bibitem{ref7}
+{Khronos OpenCL Working Group}.
+\newblock The {OpenCL} specification, version 1.0.29.
+\newblock Technical report, Khronos Group, December 2008.
+
+\bibitem{ref8}
+Q.~Li, V.~Kecman, and R.~Salman.
+\newblock A chunking method for {Euclidean} distance matrix calculation on
+  large dataset using multi-{GPU}.
+\newblock In {\em Proceedings of the 2010 Ninth International Conference on
+  Machine Learning and Applications (ICMLA '10)}, pages 208--213, Washington,
+  DC, USA, 2010. IEEE Computer Society.
+
+\bibitem{ref9}
+D.~Man, K.~Uda, Y.~Ito, and K.~Nakano.
+\newblock A {GPU} implementation of computing {Euclidean} distance map with
+  efficient memory access.
+\newblock In {\em Proceedings of the 2011 Second International Conference on
+  Networking and Computing (ICNC '11)}, pages 68--76, Washington, DC, USA,
+  2011. IEEE Computer Society.
+
+\bibitem{ref10}
+D.~Man, K.~Uda, H.~Ueyama, Y.~Ito, and K.~Nakano.
+\newblock Implementations of parallel computation of {Euclidean} distance map
+  in multicore processors and {GPU}s.
+\newblock In {\em Networking and Computing (ICNC), 2010 First International
+  Conference on}, pages 120--127, 2010.
+
+\bibitem{ref2}
+Cristobal~A. Navarro, Nancy Hitschfeld-Kahler, and L.~M.
+\newblock A survey on parallel computing and its applications in data-parallel
+  problems using {GPU} architectures.
+\newblock {\em Commun. Comput. Phys.}, 15:285--329, 2014.
+
+\bibitem{ref11}
+J.~Nickolls and W.~J. Dally.
+\newblock The {GPU} computing era.
+\newblock {\em IEEE Micro}, 30(2):56--69, March 2010.
+
+\bibitem{ref12}
+{Nvidia Corporation}.
+\newblock {\em {Nvidia CUDA C} Programming Guide}, 2012.
+
+\bibitem{ref13}
+L.~Nyland, M.~Harris, and J.~Prins.
+\newblock Fast {N}-body simulation with {CUDA}.
+\newblock In H.~Nguyen, editor, {\em GPU Gems 3}, chapter~31. Addison Wesley
+  Professional, August 2007.
+
+\bibitem{ref14}
+J.~Owens, M.~Houston, D.~Luebke, S.~Green, J.~Stone, and J.~Phillips.
+\newblock {GPU} computing.
+\newblock {\em Proceedings of the IEEE}, 96(5):879--899, May 2008.
+
+\bibitem{ref15}
+H.~A. Peelle.
+\newblock To teach {Newton}'s square root algorithm.
+\newblock {\em SIGAPL APL Quote Quad}, 5(4):48--50, December 1974.
+
+\bibitem{ref16}
+F.~Ries, T.~De Marco, M.~Zivieri, and R.~Guerrieri.
+\newblock Triangular matrix inversion on graphics processing unit.
+\newblock In {\em Proceedings of the Conference on High Performance Computing
+  Networking, Storage and Analysis (SC '09)}, pages 9:1--9:10, New York, NY,
+  USA, 2009. ACM.
+
+\bibitem{ref17}
+Z.~Ying, X.~Lin, S.~C.-W. See, and M.~Li.
+\newblock {GPU}-accelerated {DNA} distance matrix computation.
+\newblock In {\em Proceedings of the 2011 Sixth Annual ChinaGrid Conference
+  (CHINAGRID '11)}, pages 42--47, Washington, DC, USA, 2011. IEEE Computer
+  Society.
+
+\bibitem{ref18}
+T.~J. Ypma.
+\newblock Historical development of the {Newton}-{Raphson} method.
+\newblock {\em SIAM Rev.}, 37(4):531--551, December 1995.
+
+\end{thebibliography}

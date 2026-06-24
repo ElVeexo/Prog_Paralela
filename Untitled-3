@@ -1,0 +1,38 @@
+// Implementación secuencial en CPU:
+bool filtro_en_CPU(unsigned char* input, unsigned char* output, int width, int height, int r){
+  int size = width * height * 3;
+  int ventana = 2*r+1;
+  printf("Tamaño de la ventana: %d\n", ventana);
+
+  for (int i = 0; i < 10; i++) {   
+    int x = i % (width*3);
+    int y = i / (width*3);
+    int x_f = 0;
+    int y_f = 0;
+    int pixel = 0;
+    //printf("Pixel %d, coordenadas: (%d, %d)\n", i, x, y);
+    int color = i % 3;
+    for (int j = -r; j <= r; j++) { // Iteración en y
+      for (int k = -r; k <= r; k++) { // Iteración en x
+        x_f = x + k*3;
+        y_f = y + j;
+        if (x_f < 0 || x_f >= width*3 || y_f < 0 || y_f >= height) {
+          continue; // Ignorar píxeles fuera de los límites
+        }
+        pixel = pixel + input[y_f * width + x_f];
+        //printf("Pixel vecino: (%d, %d), posición: %d, input[y_f * width + x_f]: %d\n", x_f, y_f, y_f*width+x_f, input[y_f * width + x_f]);
+      }
+    }
+    
+
+    //printf("Valor del pixel: %d\n", pixel);
+    pixel = pixel / (ventana * ventana);
+    //printf("Valor del pixel  luego de aplicar 1/ventana*ventana: %d\n", pixel);
+    if (pixel > 255) {
+      pixel = 255;
+    }
+    output[i] = pixel;
+    printf("Valor del pixel %d: %d\n", i, pixel);
+  }
+  return true;
+}

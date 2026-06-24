@@ -1,0 +1,34 @@
+Documento de propuesta de proyecto
+“Sandbox de partículas interactivo”
+
+Explicación del tema escogido:
+•	El proyecto consiste en el desarrollo de un sandbox interactivo de partículas en un espacio 2D. En lugar de enfocarse en una simulación física tradicional dominada únicamente por la gravedad, este entorno virtual se centrará en las interacciones y estados. Se generarán distintos tipos de partículas y se establecerán reglas de comportamiento personalizadas (incluso inventadas) que dictarán cómo reaccionan al entrar en contacto o colisionar entre sí, por ejemplo, definir alteraciones bruscas en sus ejes de coordenadas al chocar partículas de distinto tipo simulando comportamientos abstractos.
+
+Propuesta de tecnologías que se utilizarían para desarrollar el proyecto:
+•	A nivel de Software:
+o	C++: Será el lenguaje principal del proyecto. Se utilizará para estructurar la aplicación, administrar el ciclo principal de simulación, controlar la comunicación entre CPU, GPU y sistema gráfico, además de medir tiempos de ejecución mediante herramientas como <chrono>.
+o	OpenCL: Será utilizado para implementar la parte paralela de la simulación. Mediante OpenCL, la GPU ejecutará kernels encargados de actualizar el estado de las partículas de forma simultánea. Cada hebra de ejecución podrá encargarse de calcular el comportamiento de una o más partículas, considerando posición, velocidad, tipo, colisiones o interacciones con partículas cercanas.
+o	OpenGL: Será utilizado para el renderizado gráfico de la simulación. Permitirá dibujar de manera eficiente una gran cantidad de partículas en pantalla y actualizar la visualización en cada fotograma, manteniendo una experiencia interactiva y fluida.
+•	A nivel de Hardware:
+o	El proyecto utilizará CPU para la coordinación del programa principal y una tarjeta gráfica compatible con OpenCL y OpenGL para ejecutar los cálculos paralelos y renderizar la simulación. La CPU se encargará de la lógica general del programa, entrada del usuario, inicialización de buffers y control del flujo principal. La GPU se encargará de procesar en paralelo las actualizaciones de las partículas y sus interacciones, reduciendo la carga computacional sobre la CPU.
+Por qué el problema se vería beneficiado con una implementación paralela:
+•	Una simulación de partículas puede volverse rápidamente costosa en términos computacionales, ya que en cada fotograma se deben actualizar posiciones, velocidades, estados e interacciones entre una gran cantidad de elementos. 
+En una implementación secuencial, la CPU tendría que procesar partícula por partícula, lo que puede producir una caída importante en el rendimiento al aumentar la cantidad de partículas. Además, si se comparan muchas partículas entre sí para detectar colisiones o interacciones, el costo puede crecer considerablemente, especialmente en enfoques simples de comparación directa. 
+Este problema se adapta bien al paralelismo porque muchas operaciones pueden calcularse de forma independiente. Por ejemplo, la actualización de posición, velocidad y estado de cada partícula puede asignarse a una hebra distinta en la GPU. De esta forma, en lugar de procesar miles de partículas una tras otra, la GPU puede procesar muchas de ellas simultáneamente.
+Gracias a esto, se espera lograr una simulación más fluida, con mayor cantidad de partículas en pantalla y una tasa de cuadros por segundo más estable en comparación con una versión secuencial ejecutada únicamente en CPU.
+
+a)	¿Qué se quiere lograr con la GPU?
+R: Se busca utilizar la GPU para distribuir la carga computacional asociada a la actualización e interacción de las partículas. El objetivo es que la GPU procese en paralelo operaciones como movimiento, detección de vecinos, colisiones simples y cambios de estado entre partículas. Con esto se pretende aumentar la cantidad de partículas que pueden simularse en tiempo real sin afectar drásticamente el rendimiento visual de la aplicación.
+
+b)	¿Por qué escogió el tema?
+R: Se escogió este tema porque combina un desafío algorítmico interesante con una demostración visual clara. El sandbox de partículas permite evidenciar de forma directa el beneficio del paralelismo, ya que el rendimiento puede compararse al aumentar progresivamente la cantidad de partículas. Además, el proyecto permite realizar una demostración gráfica en vivo mediante OpenGL, mostrando cómo distintas partículas interactúan en pantalla y cómo el uso de la GPU permite mantener la simulación fluida.
+
+c)	¿Qué es lo que pretende lograr/alcanzar?
+R: Desarrollar una aplicación funcional en 2D en la que el usuario pueda interactuar emitiendo diferentes materiales/partículas en pantalla, ya sea de forma manual o aleatoria. El objetivo técnico es implementar de forma eficiente las condicionales y reglas de interacción (por ejemplo, qué ocurre cuando una partícula roja colisiona con una verde) para miles de elementos simultáneos, observando cómo el sistema paralelo de la GPU resuelve la detección de vecinos y las reacciones en cadena sin perder rendimiento gráfico. El objetivo es lograr un comportamiento algorítmico y visual inspirado en simuladores de navegador como Particle Sandbox ("apexearth", 2019), donde la GPU resuelva eficientemente las fuerzas de atracción y colisión entre partículas cercanas.
+En caso de existir, debe mencionar soluciones secuenciales existentes e idealmente compararse con ellas (aunque sea teórico):
+•	A nivel teórico, compararemos nuestra implementación paralela asumiendo que una versión estrictamente secuencial tendría una caída de rendimiento a medida que aumenta la cantidad de partículas en pantalla, algo que nuestra versión paralela en GPU mitigará. 
+•	Como referencia conceptual, se considera el proyecto Particle Sandbox de apexearth ("apexearth", 2019), el cual presenta una simulación 2D de partículas con comportamiento visual interactivo. A partir de esa idea, este proyecto busca enfocarse en una implementación paralela utilizando OpenCL y renderizado con OpenGL.
+
+Bibliografía:
+"apexearth", C. (2019). Particle Sandbox: A 2D gravity simulation of particles. [Código fuente y demo interactiva]. Retrieved from GitHub: github.com/apexearth/particle-sandbox
+
