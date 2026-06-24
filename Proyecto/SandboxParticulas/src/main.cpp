@@ -103,6 +103,18 @@ std::string make_opencl_build_options() {
            " -D WALL_BOUNCE=" + std::to_string(Config::WALL_BOUNCE) + "f";
 }
 
+std::string get_opencl_device_name(cl_device_id device) {
+    size_t size = 0;
+    check_cl(clGetDeviceInfo(device, CL_DEVICE_NAME, 0, nullptr, &size),
+             "clGetDeviceInfo CL_DEVICE_NAME size");
+
+    std::vector<char> name(size, '\0');
+    check_cl(clGetDeviceInfo(device, CL_DEVICE_NAME, name.size(), name.data(), nullptr),
+             "clGetDeviceInfo CL_DEVICE_NAME");
+
+    return std::string(name.data());
+}
+
 std::vector<Particle> crear_bloque_emision(float x,
                                            float y,
                                            int material,
@@ -197,6 +209,7 @@ int main() {
     cl_int err = CL_SUCCESS;
     cl_platform_id platform = nullptr;
     cl_device_id device = nullptr;
+    bool usingGpuDevice = true;
 
     check_cl(clGetPlatformIDs(1, &platform, nullptr), "clGetPlatformIDs");
     err = clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, 1, &device, nullptr);
@@ -204,7 +217,13 @@ int main() {
         std::cout << "[INFO] No se encontro GPU OpenCL, usando CPU OpenCL como fallback." << std::endl;
         check_cl(clGetDeviceIDs(platform, CL_DEVICE_TYPE_CPU, 1, &device, nullptr),
                  "clGetDeviceIDs CPU fallback");
+        usingGpuDevice = false;
     }
+
+    const std::string openclLabel = usingGpuDevice ? "OpenCL GPU" : "OpenCL CPU";
+    const std::string openclDeviceName = get_opencl_device_name(device);
+    std::cout << "[INFO] Dispositivo " << openclLabel << ": "
+              << openclDeviceName << std::endl;
 
     cl_context context = clCreateContext(nullptr, 1, &device, nullptr, nullptr, &err);
     check_cl(err, "clCreateContext");
@@ -365,7 +384,7 @@ int main() {
 
         const auto frameEnd = std::chrono::high_resolution_clock::now();
         const std::chrono::duration<double, std::milli> frameMs = frameEnd - frameStart;
-        update_stats(window, stats, "GPU", frameMs.count(), input.paused);
+        update_stats(window, stats, openclLabel.c_str(), frameMs.count(), input.paused);
     }
 
     clReleaseMemObject(dParticlesIn);
@@ -383,4 +402,3 @@ int main() {
 
     return 0;
 }
-

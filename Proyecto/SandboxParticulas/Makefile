@@ -1,6 +1,7 @@
 CXX := g++
 CC := gcc
 NVCC := nvcc
+NVCC_HOST_CXX ?= $(shell if command -v g++-10 >/dev/null 2>&1; then command -v g++-10; else command -v g++; fi)
 
 PROJECT_DIR := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 BUILD_DIR := $(PROJECT_DIR)/build
@@ -8,11 +9,11 @@ INCLUDES := -I$(PROJECT_DIR)/include -I$(PROJECT_DIR)/src
 
 CXXFLAGS := -std=c++17 -O2 -Wall -Wextra $(INCLUDES)
 CFLAGS := -O2 -Wall -Wextra $(INCLUDES)
-NVCCFLAGS := -std=c++17 -O2 $(INCLUDES)
+NVCCFLAGS := -std=c++14 -O2 $(INCLUDES) -ccbin $(NVCC_HOST_CXX)
 GL_LIBS := -lglfw -lGL -ldl -lpthread -lm
 CL_LIBS := -lOpenCL
 
-.PHONY: all all3 cuda runCPU runGPU runCUDA install-deps-ubuntu install-cuda-ubuntu check-opencl check-cuda clean
+.PHONY: all all3 cuda runCPU runGPU runCUDA install-all install-all-ubuntu install-deps-ubuntu install-opencl-runtime-ubuntu install-cuda-ubuntu check-opencl check-cuda clean
 
 all: $(BUILD_DIR)/sandboxCPU $(BUILD_DIR)/sandboxGPU
 
@@ -44,13 +45,23 @@ runGPU: $(BUILD_DIR)/sandboxGPU
 runCUDA: $(BUILD_DIR)/sandboxCUDA
 	cd $(PROJECT_DIR) && $(BUILD_DIR)/sandboxCUDA
 
+install-all: install-all-ubuntu
+
+install-all-ubuntu:
+	sudo apt-get update
+	sudo apt-get install -y build-essential gcc g++ gcc-10 g++-10 make libglfw3-dev libgl1-mesa-dev mesa-common-dev libglu1-mesa-dev ocl-icd-opencl-dev opencl-headers clinfo pocl-opencl-icd nvidia-cuda-toolkit
+
 install-deps-ubuntu:
 	sudo apt-get update
 	sudo apt-get install -y build-essential gcc g++ make libglfw3-dev libgl1-mesa-dev mesa-common-dev libglu1-mesa-dev ocl-icd-opencl-dev opencl-headers clinfo
 
+install-opencl-runtime-ubuntu:
+	sudo apt-get update
+	sudo apt-get install -y ocl-icd-opencl-dev opencl-headers clinfo pocl-opencl-icd
+
 install-cuda-ubuntu:
 	sudo apt-get update
-	sudo apt-get install -y nvidia-cuda-toolkit
+	sudo apt-get install -y gcc-10 g++-10 nvidia-cuda-toolkit
 
 check-opencl:
 	clinfo
