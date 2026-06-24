@@ -1,7 +1,17 @@
 CXX := g++
 CC := gcc
 NVCC := nvcc
-NVCC_HOST_CXX ?= $(shell if command -v g++-10 >/dev/null 2>&1; then command -v g++-10; else command -v g++; fi)
+OS := $(shell uname -s)
+
+ifeq ($(findstring MINGW,$(OS)),MINGW)
+    # Windows / MSYS2
+    NVCC_HOST_CXX ?= $(CXX)
+    GL_LIBS := -lglfw3 -lopengl32 -lgdi32 -lpthread
+else
+    # Linux / WSL
+    NVCC_HOST_CXX ?= $(shell if command -v g++-10 >/dev/null 2>&1; then command -v g++-10; else command -v g++; fi)
+    GL_LIBS := -lglfw -lGL -ldl -lpthread -lm
+endif
 
 PROJECT_DIR := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 BUILD_DIR := $(PROJECT_DIR)/build
@@ -10,7 +20,6 @@ INCLUDES := -I$(PROJECT_DIR)/include -I$(PROJECT_DIR)/src
 CXXFLAGS := -std=c++17 -O2 -Wall -Wextra $(INCLUDES)
 CFLAGS := -O2 -Wall -Wextra $(INCLUDES)
 NVCCFLAGS := -std=c++14 -O2 $(INCLUDES) -ccbin $(NVCC_HOST_CXX)
-GL_LIBS := -lglfw -lGL -ldl -lpthread -lm
 CL_LIBS := -lOpenCL
 
 .PHONY: all all3 cuda runCPU runGPU runCUDA install-all install-all-ubuntu install-deps-ubuntu install-opencl-runtime-ubuntu install-cuda-ubuntu check-opencl check-cuda clean

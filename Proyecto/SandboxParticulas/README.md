@@ -1,62 +1,52 @@
 # Sandbox de Particulas
 
-Tres versiones comparables:
+Sandbox interactivo 2D con particulas de distintos materiales. El proyecto se
+trabajara principalmente con dos versiones comparables:
 
 - `sandboxCPU`: simulacion secuencial `O(N^2)` + OpenGL.
-- `sandboxGPU`: simulacion OpenCL tiled `O(N^2)` + `__local` + OpenGL.
 - `sandboxCUDA`: simulacion CUDA tiled `O(N^2)` + `__shared__` + OpenGL.
 
-Ambas usan:
+La version OpenCL puede quedar en el repositorio como referencia/experimento,
+pero no sera el foco principal debido a las limitaciones de OpenCL con GPU NVIDIA
+en WSL. Para la comparacion del proyecto se usara CPU secuencial vs CUDA.
+
+Ambas versiones principales usan:
 
 - `include/config.hpp` para parametros globales.
-- `include/particles.hpp` para estructuras y reglas compartidas.
+- `include/particles.hpp` para estructuras, inicializacion y reglas CPU.
+- `src/mainCUDA.cu` para reglas CUDA equivalentes.
 - `GL_POINTS` para renderizar particulas en tiempo real.
 
 ## Compilar
+
+Para compilar CPU:
 
 ```bash
 make
 ```
 
-Por defecto `make` compila CPU + OpenCL. CUDA se deja separado para que el proyecto no falle en computadores sin `nvcc`.
+Nota: el target `make` tambien puede compilar OpenCL si el `Makefile` mantiene
+ese backend. Para el proyecto principal, los ejecutables importantes son
+`sandboxCPU` y `sandboxCUDA`.
 
-Para compilar las tres versiones:
-
-```bash
-make all3
-```
-
-Para compilar solo CUDA:
+Para compilar CUDA:
 
 ```bash
 make cuda
 ```
 
+Para compilar todo lo disponible:
+
+```bash
+make all3
+```
+
 ## Dependencias
 
-El proyecto ahora incluye dos backends GPU:
-
-- OpenCL: `src/main.cpp` + `kernels/kernel.cl`.
-- CUDA: `src/mainCUDA.cu`.
-
-Paquetes base en Ubuntu/Debian:
+En Ubuntu/Debian/WSL:
 
 ```bash
-make install-deps-ubuntu
-```
-
-Eso instala compilador C/C++, GLFW, OpenGL/Mesa, headers de OpenCL, loader OpenCL y `clinfo`. Es suficiente para `sandboxCPU` y para compilar `sandboxGPU`.
-
-Para compilar y ejecutar `sandboxCUDA`, instalar CUDA toolkit:
-
-```bash
-make install-cuda-ubuntu
-```
-
-Luego se puede revisar si OpenCL ve algun dispositivo:
-
-```bash
-make check-opencl
+make install-all
 ```
 
 Para revisar CUDA:
@@ -67,16 +57,14 @@ make check-cuda
 
 Notas:
 
-- `sandboxCPU` necesita GLFW/OpenGL, pero no necesita OpenCL ni CUDA.
-- `sandboxGPU` necesita GLFW/OpenGL y un runtime OpenCL funcional.
+- `sandboxCPU` necesita GLFW/OpenGL, pero no necesita CUDA.
 - `sandboxCUDA` necesita GLFW/OpenGL, `nvcc`, CUDA runtime y una GPU NVIDIA compatible.
-- En equipos sin GPU compatible, OpenCL puede usar CPU como fallback si hay runtime CPU instalado; CUDA no tiene fallback CPU.
+- En WSL, CUDA funciona para GPU NVIDIA; OpenCL puede no exponer la GPU NVIDIA y puede caer a CPU.
 
 ## Ejecutar
 
 ```bash
 make runCPU
-make runGPU
 make runCUDA
 ```
 
@@ -84,26 +72,107 @@ make runCUDA
 
 - `SPACE`: pausar/reanudar.
 - `R`: reiniciar.
-- `1`: emitir particulas rojas.
-- `2`: emitir particulas verdes.
-- `3`: emitir particulas azules.
-- Click izquierdo: emitir particulas alrededor del cursor.
+- `1`: seleccionar particulas rojas.
+- `2`: seleccionar particulas verdes.
+- `3`: seleccionar particulas azules.
+- Click izquierdo: emitir una particula del color seleccionado en el cursor.
 - `ESC`: cerrar.
 
-## Comparacion
+Cada cambio de color se imprime en consola como:
 
-Cambiar `Config::PARTICLE_COUNT` en `include/config.hpp`, recompilar y registrar:
+```text
+[INFO] Color seleccionado: rojo
+```
+
+## Configuracion
+
+Todas las variables generales se modifican en:
+
+```text
+include/config.hpp
+```
+
+Variables principales:
+
+- `WINDOW_WIDTH`: ancho inicial de la ventana OpenGL.
+- `WINDOW_HEIGHT`: alto inicial de la ventana OpenGL.
+- `PARTICLE_COUNT`: cantidad total de particulas simuladas. Aumentar este valor sube el costo `O(N^2)`.
+- `LOCAL_SIZE`: hilos por bloque CUDA y tamano del tile compartido.
+- `WORLD_MIN_X`, `WORLD_MAX_X`: limites horizontales del mundo.
+- `WORLD_MIN_Y`, `WORLD_MAX_Y`: limites verticales del mundo.
+- `BASE_RADIUS`: radio inicial de cada particula.
+- `DEFAULT_DAMPING`: amortiguacion aplicada a la velocidad en cada frame.
+- `WALL_BOUNCE`: perdida/conservacion de velocidad al rebotar con paredes.
+- `FIXED_DT`: paso de tiempo fijo de la simulacion.
+- `EMIT_COUNT`: cantidad de particulas emitidas por click. Para este proyecto queda en `1`.
+- `EMIT_SPREAD`: dispersion aleatoria alrededor del cursor al emitir.
+- `EMIT_SPEED`: rango de velocidad inicial de la particula emitida.
+- `WARMUP_FRAMES`: frames ignorados antes de promediar mediciones.
+- `MEASURE_FRAMES`: cantidad objetivo de frames de medicion.
+- `LOG_EVERY_FRAMES`: frecuencia con que se imprimen FPS y frame time.
+
+Para la tabla comparativa, cambiar `Config::PARTICLE_COUNT`, recompilar y medir:
 
 ```text
 N = 1024, 4096, 8192, 16384
 ```
 
+## Reglas de Particulas
+
+Las estructuras compartidas estan en:
+
+```text
+include/particles.hpp
+```
+
+Ahi se definen:
+
+- `MaterialType`: rojo, verde y azul.
+- `ParticleState`: normal o alterada.
+- `Particle`: datos de simulacion.
+- `RenderParticle`: datos enviados a OpenGL.
+- `crear_particulas`: inicializacion comun.
+- `make_particle`: creacion de una particula.
+- `aplicar_interaccion_cpu`: reglas de colision/interaccion en CPU.
+- `integrar_y_rebotar_cpu`: movimiento, damping y rebote en paredes.
+
+Para cambiar el comportamiento en CPU, editar:
+
+```text
+include/particles.hpp
+```
+
+Funciones clave:
+
+- `aplicar_interaccion_cpu`
+- `integrar_y_rebotar_cpu`
+
+Para cambiar el comportamiento en CUDA, editar:
+
+```text
+src/mainCUDA.cu
+```
+
+Funciones clave:
+
+- `aplicar_interaccion_cuda`
+- `integrar_y_rebotar_cuda`
+- `update_particles_tiled_cuda`
+
+Importante: si se cambia una regla en CPU, se debe replicar el mismo cambio en
+CUDA para que la comparacion sea justa.
+
+## Comparacion
+
 Tabla sugerida:
 
 ```text
-N       CPU FPS   CPU ms   OpenCL FPS   OpenCL ms   CUDA FPS   CUDA ms
-1024    ...       ...      ...          ...         ...        ...
-4096    ...       ...      ...          ...         ...        ...
-8192    ...       ...      ...          ...         ...        ...
-16384   ...       ...      ...          ...         ...        ...
+N       CPU FPS   CPU ms   CUDA FPS   CUDA ms
+1024    ...       ...      ...        ...
+4096    ...       ...      ...        ...
+8192    ...       ...      ...        ...
+16384   ...       ...      ...        ...
 ```
+
+El objetivo es comparar la version secuencial `O(N^2)` contra la version CUDA
+tiled `O(N^2)` usando memoria compartida.

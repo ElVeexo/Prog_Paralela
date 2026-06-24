@@ -16,6 +16,10 @@ struct InputState {
     bool paused = false;
     bool lastSpace = false;
     bool lastR = false;
+    bool last1 = false;
+    bool last2 = false;
+    bool last3 = false;
+    bool lastLeftMouse = false;
     bool resetRequested = false;
     int selectedMaterial = MATERIAL_RED;
 };
@@ -24,6 +28,25 @@ struct FrameStats {
     int frame = 0;
     double accumulatedMs = 0.0;
 };
+
+const char* material_name(int material) {
+    if (material == MATERIAL_RED) {
+        return "rojo";
+    }
+    if (material == MATERIAL_GREEN) {
+        return "verde";
+    }
+    return "azul";
+}
+
+void select_material(InputState& input, int material) {
+    if (input.selectedMaterial == material) {
+        return;
+    }
+
+    input.selectedMaterial = material;
+    std::cout << "[INFO] Color seleccionado: " << material_name(material) << std::endl;
+}
 
 void process_input(GLFWwindow* window, InputState& input) {
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
@@ -42,25 +65,42 @@ void process_input(GLFWwindow* window, InputState& input) {
     }
     input.lastR = rPressed;
 
-    if (glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS) {
-        input.selectedMaterial = MATERIAL_RED;
+    const bool key1Pressed = glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS;
+    if (key1Pressed && !input.last1) {
+        select_material(input, MATERIAL_RED);
     }
-    if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS) {
-        input.selectedMaterial = MATERIAL_GREEN;
+    input.last1 = key1Pressed;
+
+    const bool key2Pressed = glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS;
+    if (key2Pressed && !input.last2) {
+        select_material(input, MATERIAL_GREEN);
     }
-    if (glfwGetKey(window, GLFW_KEY_3) == GLFW_PRESS) {
-        input.selectedMaterial = MATERIAL_BLUE;
+    input.last2 = key2Pressed;
+
+    const bool key3Pressed = glfwGetKey(window, GLFW_KEY_3) == GLFW_PRESS;
+    if (key3Pressed && !input.last3) {
+        select_material(input, MATERIAL_BLUE);
     }
+    input.last3 = key3Pressed;
 }
 
 void maybe_emit_particles(GLFWwindow* window,
                           std::vector<Particle>& particles,
                           int& emitCursor,
                           int selectedMaterial,
+                          bool& lastLeftMouse,
                           unsigned int& seed) {
-    if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) != GLFW_PRESS) {
+    const bool leftMousePressed =
+        glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
+
+    if (!leftMousePressed) {
+        lastLeftMouse = false;
         return;
     }
+    if (lastLeftMouse) {
+        return;
+    }
+    lastLeftMouse = true;
 
     double mouseX = 0.0;
     double mouseY = 0.0;
@@ -147,7 +187,14 @@ int main() {
             input.resetRequested = false;
         }
 
-        maybe_emit_particles(window, particlesIn, emitCursor, input.selectedMaterial, seed);
+        maybe_emit_particles(
+            window,
+            particlesIn,
+            emitCursor,
+            input.selectedMaterial,
+            input.lastLeftMouse,
+            seed
+        );
 
         if (!input.paused) {
             update_cpu_naive(particlesIn, particlesOut, Config::FIXED_DT);

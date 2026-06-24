@@ -1,10 +1,10 @@
 #pragma once
 
 namespace Config {
-constexpr int WINDOW_WIDTH = 1280;
-constexpr int WINDOW_HEIGHT = 720;
+constexpr int WINDOW_WIDTH = 600;
+constexpr int WINDOW_HEIGHT = 600;
 
-constexpr int PARTICLE_COUNT = 4096;
+constexpr int PARTICLE_COUNT = 128;
 constexpr int LOCAL_SIZE = 256;
 
 constexpr float WORLD_MIN_X = -1.0f;
@@ -17,7 +17,7 @@ constexpr float DEFAULT_DAMPING = 0.995f;
 constexpr float WALL_BOUNCE = 0.90f;
 constexpr float FIXED_DT = 0.016f;
 
-constexpr int EMIT_COUNT = 96;
+constexpr int EMIT_COUNT = 1;
 constexpr float EMIT_SPREAD = 0.035f;
 constexpr float EMIT_SPEED = 0.22f;
 
