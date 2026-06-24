@@ -176,92 +176,113 @@ void write_emission_to_cuda(GLFWwindow* window,
     emitCursor = (emitCursor + Config::EMIT_COUNT) % Config::PARTICLE_COUNT;
 }
 
-__global__ void update_particles_cuda(const Particle* inParticles,
-                                      Particle* outParticles,
-                                      float dt) {
-    const int i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i >= Config::PARTICLE_COUNT) {
+__device__ void aplicar_interaccion_cuda(Particle& p, const Particle& q) {
+    const float dx = p.pos_radius.x - q.pos_radius.x;
+    const float dy = p.pos_radius.y - q.pos_radius.y;
+    const float dist2 = dx * dx + dy * dy;
+    const float minDist = p.pos_radius.z + q.pos_radius.z;
+
+    if (dist2 <= 0.000001f || dist2 >= minDist * minDist) {
         return;
     }
 
-    Particle p = inParticles[i];
+    const float invDist = rsqrtf(dist2);
+    const float nx = dx * invDist;
+    const float ny = dy * invDist;
 
-    float posX = p.pos_radius.x;
-    float posY = p.pos_radius.y;
-    float velX = p.vel_misc.x;
-    float velY = p.vel_misc.y;
+    p.vel_misc.x += nx * 0.02f;
+    p.vel_misc.y += ny * 0.02f;
+
+    if (p.type == MATERIAL_RED && q.type == MATERIAL_GREEN) {
+        const float oldVx = p.vel_misc.x;
+        p.vel_misc.x = -p.vel_misc.y * 1.20f;
+        p.vel_misc.y = oldVx * 1.20f;
+        p.energy = 1.0f;
+        p.state = STATE_ALTERED;
+    } else if (p.type == MATERIAL_GREEN && q.type == MATERIAL_BLUE) {
+        p.vel_misc.x *= 0.92f;
+        p.vel_misc.y *= 0.92f;
+        p.energy = 0.5f;
+    } else if (p.type == MATERIAL_BLUE && q.type == MATERIAL_RED) {
+        p.vel_misc.x += nx * 0.03f;
+        p.vel_misc.y += ny * 0.03f;
+        p.energy = 1.0f;
+        p.state = STATE_ALTERED;
+    }
+}
+
+__device__ void integrar_y_rebotar_cuda(Particle& p, float dt) {
+    p.pos_radius.x += p.vel_misc.x * dt;
+    p.pos_radius.y += p.vel_misc.y * dt;
+    p.vel_misc.x *= p.vel_misc.z;
+    p.vel_misc.y *= p.vel_misc.z;
+
     const float radius = p.pos_radius.z;
 
-    for (int j = 0; j < Config::PARTICLE_COUNT; ++j) {
-        if (i == j) {
-            continue;
-        }
-
-        const Particle q = inParticles[j];
-        const float dx = posX - q.pos_radius.x;
-        const float dy = posY - q.pos_radius.y;
-        const float dist2 = dx * dx + dy * dy;
-        const float minDist = radius + q.pos_radius.z;
-
-        if (dist2 > 0.000001f && dist2 < minDist * minDist) {
-            const float invDist = rsqrtf(dist2);
-            const float nx = dx * invDist;
-            const float ny = dy * invDist;
-
-            velX += nx * 0.02f;
-            velY += ny * 0.02f;
-
-            if (p.type == MATERIAL_RED && q.type == MATERIAL_GREEN) {
-                const float oldVx = velX;
-                velX = -velY * 1.20f;
-                velY = oldVx * 1.20f;
-                p.energy = 1.0f;
-                p.state = STATE_ALTERED;
-            } else if (p.type == MATERIAL_GREEN && q.type == MATERIAL_BLUE) {
-                velX *= 0.92f;
-                velY *= 0.92f;
-                p.energy = 0.5f;
-            } else if (p.type == MATERIAL_BLUE && q.type == MATERIAL_RED) {
-                velX += nx * 0.03f;
-                velY += ny * 0.03f;
-                p.energy = 1.0f;
-                p.state = STATE_ALTERED;
-            }
-        }
+    if (p.pos_radius.x < Config::WORLD_MIN_X + radius) {
+        p.pos_radius.x = Config::WORLD_MIN_X + radius;
+        p.vel_misc.x *= -Config::WALL_BOUNCE;
+    }
+    if (p.pos_radius.x > Config::WORLD_MAX_X - radius) {
+        p.pos_radius.x = Config::WORLD_MAX_X - radius;
+        p.vel_misc.x *= -Config::WALL_BOUNCE;
+    }
+    if (p.pos_radius.y < Config::WORLD_MIN_Y + radius) {
+        p.pos_radius.y = Config::WORLD_MIN_Y + radius;
+        p.vel_misc.y *= -Config::WALL_BOUNCE;
+    }
+    if (p.pos_radius.y > Config::WORLD_MAX_Y - radius) {
+        p.pos_radius.y = Config::WORLD_MAX_Y - radius;
+        p.vel_misc.y *= -Config::WALL_BOUNCE;
     }
 
-    posX += velX * dt;
-    posY += velY * dt;
-    velX *= p.vel_misc.z;
-    velY *= p.vel_misc.z;
-
-    if (posX < Config::WORLD_MIN_X + radius) {
-        posX = Config::WORLD_MIN_X + radius;
-        velX *= -Config::WALL_BOUNCE;
-    }
-    if (posX > Config::WORLD_MAX_X - radius) {
-        posX = Config::WORLD_MAX_X - radius;
-        velX *= -Config::WALL_BOUNCE;
-    }
-    if (posY < Config::WORLD_MIN_Y + radius) {
-        posY = Config::WORLD_MIN_Y + radius;
-        velY *= -Config::WALL_BOUNCE;
-    }
-    if (posY > Config::WORLD_MAX_Y - radius) {
-        posY = Config::WORLD_MAX_Y - radius;
-        velY *= -Config::WALL_BOUNCE;
-    }
-
-    p.pos_radius.x = posX;
-    p.pos_radius.y = posY;
-    p.vel_misc.x = velX;
-    p.vel_misc.y = velY;
     p.energy = fmaxf(0.0f, p.energy - dt);
     if (p.energy <= 0.0f) {
         p.state = STATE_NORMAL;
     }
+}
 
-    outParticles[i] = p;
+__global__ void update_particles_tiled_cuda(const Particle* inParticles,
+                                            Particle* outParticles,
+                                            float dt) {
+    __shared__ Particle tile[Config::LOCAL_SIZE];
+
+    const int i = blockIdx.x * blockDim.x + threadIdx.x;
+    const int localId = threadIdx.x;
+    const bool active = i < Config::PARTICLE_COUNT;
+
+    Particle p;
+    if (active) {
+        p = inParticles[i];
+    }
+
+    for (int tileStart = 0; tileStart < Config::PARTICLE_COUNT; tileStart += blockDim.x) {
+        const int j = tileStart + localId;
+
+        if (j < Config::PARTICLE_COUNT) {
+            tile[localId] = inParticles[j];
+        }
+
+        __syncthreads();
+
+        const int tileCount = min(blockDim.x, Config::PARTICLE_COUNT - tileStart);
+        if (active) {
+            for (int k = 0; k < tileCount; ++k) {
+                const int globalJ = tileStart + k;
+                if (globalJ == i) {
+                    continue;
+                }
+                aplicar_interaccion_cuda(p, tile[k]);
+            }
+        }
+
+        __syncthreads();
+    }
+
+    if (active) {
+        integrar_y_rebotar_cuda(p, dt);
+        outParticles[i] = p;
+    }
 }
 
 __global__ void build_render_particles_cuda(const Particle* particles,
@@ -351,12 +372,12 @@ int main() {
         );
 
         if (!input.paused) {
-            update_particles_cuda<<<blocks, threads>>>(
+            update_particles_tiled_cuda<<<blocks, threads>>>(
                 dParticlesIn,
                 dParticlesOut,
                 Config::FIXED_DT
             );
-            check_cuda(cudaGetLastError(), "launch update_particles_cuda");
+            check_cuda(cudaGetLastError(), "launch update_particles_tiled_cuda");
             check_cuda(cudaDeviceSynchronize(), "cudaDeviceSynchronize update");
             std::swap(dParticlesIn, dParticlesOut);
         }
@@ -396,4 +417,3 @@ int main() {
 
     return 0;
 }
-

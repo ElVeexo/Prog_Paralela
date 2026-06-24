@@ -96,6 +96,7 @@ void update_stats(GLFWwindow* window,
 
 std::string make_opencl_build_options() {
     return " -D PARTICLE_COUNT=" + std::to_string(Config::PARTICLE_COUNT) +
+           " -D TILE_SIZE=" + std::to_string(Config::LOCAL_SIZE) +
            " -D WORLD_MIN_X=" + std::to_string(Config::WORLD_MIN_X) + "f" +
            " -D WORLD_MAX_X=" + std::to_string(Config::WORLD_MAX_X) + "f" +
            " -D WORLD_MIN_Y=" + std::to_string(Config::WORLD_MIN_Y) + "f" +
@@ -244,8 +245,8 @@ int main() {
         check_cl(err, "clBuildProgram");
     }
 
-    cl_kernel kUpdate = clCreateKernel(program, "update_particles_naive", &err);
-    check_cl(err, "clCreateKernel update_particles_naive");
+    cl_kernel kUpdate = clCreateKernel(program, "update_particles_tiled", &err);
+    check_cl(err, "clCreateKernel update_particles_tiled");
     cl_kernel kBuildRender = clCreateKernel(program, "build_render_particles", &err);
     check_cl(err, "clCreateKernel build_render_particles");
 
@@ -328,6 +329,8 @@ int main() {
             const float dt = Config::FIXED_DT;
             err = clSetKernelArg(kUpdate, 2, sizeof(float), &dt);
             check_cl(err, "clSetKernelArg update dt");
+            err = clSetKernelArg(kUpdate, 3, sizeof(Particle) * Config::LOCAL_SIZE, nullptr);
+            check_cl(err, "clSetKernelArg update local tile");
 
             err = clEnqueueNDRangeKernel(
                 queue,
@@ -341,6 +344,7 @@ int main() {
                 nullptr
             );
             check_cl(err, "clEnqueueNDRangeKernel update");
+            check_cl(clFinish(queue), "clFinish update");
 
             std::swap(dParticlesIn, dParticlesOut);
         }
