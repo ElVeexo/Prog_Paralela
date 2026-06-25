@@ -1,2 +1,10 @@
 .codex
 Proyecto/SandboxParticulas/build/sandbox*
+Proyecto/SandboxParticulas/benchmark_results/
+*.aux
+*.log
+*.nav
+*.out
+*.snm
+*.toc
+*.vrb

@@ -216,6 +216,33 @@ void write_emission_to_cuda(GLFWwindow* window,
     emitCursor = (emitCursor + Config::EMIT_COUNT) % Config::PARTICLE_COUNT;
 }
 
+__device__ void limitar_velocidad_cuda(Particle& p) {
+    const float vx = p.vel_misc.x;
+    const float vy = p.vel_misc.y;
+    const float speed2 = vx * vx + vy * vy;
+    const float minSpeed = Config::MIN_PARTICLE_SPEED;
+    const float maxSpeed = Config::MAX_PARTICLE_SPEED;
+
+    if (speed2 < minSpeed * minSpeed) {
+        if (speed2 <= 0.000001f) {
+            p.vel_misc.x = minSpeed;
+            p.vel_misc.y = 0.0f;
+            return;
+        }
+
+        const float invSpeed = rsqrtf(speed2);
+        p.vel_misc.x = vx * invSpeed * minSpeed;
+        p.vel_misc.y = vy * invSpeed * minSpeed;
+        return;
+    }
+
+    if (speed2 > maxSpeed * maxSpeed) {
+        const float invSpeed = rsqrtf(speed2);
+        p.vel_misc.x = vx * invSpeed * maxSpeed;
+        p.vel_misc.y = vy * invSpeed * maxSpeed;
+    }
+}
+
 __device__ void aplicar_interaccion_cuda(Particle& p, const Particle& q) {
     const float dx = p.pos_radius.x - q.pos_radius.x;
     const float dy = p.pos_radius.y - q.pos_radius.y;
@@ -230,24 +257,48 @@ __device__ void aplicar_interaccion_cuda(Particle& p, const Particle& q) {
     const float nx = dx * invDist;
     const float ny = dy * invDist;
 
-    p.vel_misc.x += nx * 0.02f;
-    p.vel_misc.y += ny * 0.02f;
-
-    if (p.type == MATERIAL_RED && q.type == MATERIAL_GREEN) {
-        const float oldVx = p.vel_misc.x;
-        p.vel_misc.x = -p.vel_misc.y * 1.20f;
-        p.vel_misc.y = oldVx * 1.20f;
-        p.energy = 1.0f;
+    if (p.type == MATERIAL_GREEN && q.type == MATERIAL_GREEN) {
+        p.vel_misc.x *= Config::GREEN_GREEN_SPEEDUP;
+        p.vel_misc.y *= Config::GREEN_GREEN_SPEEDUP;
+        p.vel_misc.x += nx * 0.02f;
+        p.vel_misc.y += ny * 0.02f;
+        p.energy = 0.8f;
         p.state = STATE_ALTERED;
     } else if (p.type == MATERIAL_GREEN && q.type == MATERIAL_BLUE) {
-        p.vel_misc.x *= 0.92f;
-        p.vel_misc.y *= 0.92f;
-        p.energy = 0.5f;
-    } else if (p.type == MATERIAL_BLUE && q.type == MATERIAL_RED) {
+        p.vel_misc.x *= Config::GREEN_BLUE_SPEEDUP;
+        p.vel_misc.y *= Config::GREEN_BLUE_SPEEDUP;
+        p.vel_misc.x += nx * 0.02f;
+        p.vel_misc.y += ny * 0.02f;
+        p.energy = 0.7f;
+        p.state = STATE_ALTERED;
+    } else if (p.type == MATERIAL_GREEN && q.type == MATERIAL_RED) {
+        p.vel_misc.x *= Config::GREEN_RED_SPEEDUP;
+        p.vel_misc.y *= Config::GREEN_RED_SPEEDUP;
         p.vel_misc.x += nx * 0.03f;
         p.vel_misc.y += ny * 0.03f;
         p.energy = 1.0f;
         p.state = STATE_ALTERED;
+    } else if (p.type == MATERIAL_BLUE) {
+        p.vel_misc.x = p.vel_misc.x * Config::BLUE_COLLISION_DAMPING +
+                       q.vel_misc.x * Config::BLUE_VELOCITY_TRANSFER +
+                       nx * Config::BLUE_NORMAL_PUSH;
+        p.vel_misc.y = p.vel_misc.y * Config::BLUE_COLLISION_DAMPING +
+                       q.vel_misc.y * Config::BLUE_VELOCITY_TRANSFER +
+                       ny * Config::BLUE_NORMAL_PUSH;
+        p.energy = 0.6f;
+        p.state = STATE_ALTERED;
+    } else if (p.type == MATERIAL_RED && q.type == MATERIAL_GREEN) {
+        p.vel_misc.x += nx * Config::RED_GREEN_RESPONSE * 0.02f;
+        p.vel_misc.y += ny * Config::RED_GREEN_RESPONSE * 0.02f;
+        p.energy = 0.35f;
+    } else if (p.type == MATERIAL_RED && q.type == MATERIAL_BLUE) {
+        p.vel_misc.x += nx * Config::RED_BLUE_RESPONSE * 0.02f;
+        p.vel_misc.y += ny * Config::RED_BLUE_RESPONSE * 0.02f;
+        p.energy = 0.45f;
+    } else if (p.type == MATERIAL_RED && q.type == MATERIAL_RED) {
+        p.vel_misc.x += nx * Config::RED_RED_RESPONSE * 0.02f;
+        p.vel_misc.y += ny * Config::RED_RED_RESPONSE * 0.02f;
+        p.energy = 0.25f;
     }
 }
 
@@ -280,6 +331,8 @@ __device__ void integrar_y_rebotar_cuda(Particle& p, float dt) {
     if (p.energy <= 0.0f) {
         p.state = STATE_NORMAL;
     }
+
+    limitar_velocidad_cuda(p);
 }
 
 __global__ void update_particles_tiled_cuda(const Particle* inParticles,

@@ -1,0 +1,255 @@
+\documentclass[aspectratio=169]{beamer}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish]{babel}
+\usepackage{booktabs}
+\usepackage{amsmath}
+
+\usetheme{Madrid}
+\usecolortheme{seahorse}
+
+\title[Sandbox de Partículas 2D]{Sandbox de partículas interactivo 2D}
+\subtitle{Comparación de ejecución en CPU secuencial vs ejecución en CUDA}
+\author[Vicente Zapata González]{Vicente Zapata González\\ROL: 202073573-5}
+\institute[]{
+    (ILI257) Programación Paralela Aplicada\\
+    Profesor: Jorge Díaz Matte
+}
+\date{Jueves 25 de junio de 2026}
+
+\begin{document}
+
+\begin{frame}
+    \titlepage
+\end{frame}
+
+\begin{frame}{Motivación}
+    \begin{itemize}
+        \item Se implementó una simulación 2D con interfaz gráfica, donde el usuario puede observar y modificar partículas en tiempo real.
+        \item Cada partícula posee posición, velocidad y material.
+        \item Las partículas reaccionan al colisionar según reglas personalizadas.
+        \item El objetivo principal es mostrar cómo una simulación costosa se beneficia del paralelismo en GPU.
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Problema computacional}
+    En cada frame, cada partícula se compara contra todas las demás:
+
+    \[
+        \text{comparaciones por frame} = N \times N
+    \]
+
+    \vspace{0.4cm}
+
+    \begin{itemize}
+        \item Con $N = 1024$: aproximadamente 1 millón de comparaciones.
+        \item Con $N = 8192$: aproximadamente 67 millones de comparaciones.
+        \item Con $N = 16384$: aproximadamente 268 millones de comparaciones.
+    \end{itemize}
+
+    \vspace{0.3cm}
+
+    Aunque CPU y CUDA mantienen complejidad $O(N^2)$, la GPU puede repartir el trabajo entre miles de hilos.
+\end{frame}
+
+\begin{frame}{Arquitectura del proyecto}
+    \begin{columns}
+        \begin{column}{0.48\textwidth}
+            \textbf{Versión CPU}
+            \begin{itemize}
+                \item C++ secuencial.
+                \item Doble buffer de partículas.
+                \item Un ciclo externo por partícula.
+                \item Un ciclo interno contra todas las demás.
+                \item Render con OpenGL.
+            \end{itemize}
+        \end{column}
+
+        \begin{column}{0.48\textwidth}
+            \textbf{Versión CUDA}
+            \begin{itemize}
+                \item Un hilo por partícula.
+                \item Doble buffer en GPU.
+                \item Kernel tiled $O(N^2)$.
+                \item Uso de memoria compartida \texttt{\_\_shared\_\_}.
+                \item Render con OpenGL.
+            \end{itemize}
+        \end{column}
+    \end{columns}
+
+    \vfill
+    {\scriptsize Nota: la estructura del proyecto reutiliza como base las ideas trabajadas en los laboratorios del curso: host C++/CUDA, medición, buffers y render con OpenGL.}
+\end{frame}
+
+\begin{frame}[fragile]{CPU secuencial}
+    La versión CPU calcula cada partícula una por una:
+
+\begin{verbatim}
+for (int i = 0; i < count; ++i) {
+    Particle p = in[i];
+
+    for (int j = 0; j < count; ++j) {
+        if (i == j) continue;
+        aplicar_interaccion_cpu(p, in[j]);
+    }
+
+    integrar_y_rebotar_cpu(p, dt);
+    out[i] = p;
+}
+\end{verbatim}
+
+    \begin{itemize}
+        \item Es simple y directa.
+        \item No usa hilos ni paralelismo explícito.
+        \item Aumentar $N$ impacta muy fuerte en FPS.
+    \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{CUDA tiled}
+    En CUDA, cada hilo procesa una partícula:
+
+\begin{verbatim}
+__shared__ Particle tile[Config::LOCAL_SIZE];
+
+for (int tileStart = 0; tileStart < N; tileStart += blockDim.x) {
+    tile[threadIdx.x] = inParticles[tileStart + threadIdx.x];
+    __syncthreads();
+
+    for (int k = 0; k < tileCount; ++k) {
+        aplicar_interaccion_cuda(p, tile[k]);
+    }
+
+    __syncthreads();
+}
+\end{verbatim}
+
+    \begin{itemize}
+        \item Se reutilizan bloques de partículas en memoria compartida.
+        \item Cada hilo escribe solamente su propia partícula.
+        \item Se evita una condición de carrera sobre el estado global.
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Interacción de materiales}
+    Se definieron tres materiales con comportamiento distinto:
+
+    \begin{itemize}
+        \item \textbf{Verde}: material liviano, acelera con mayor facilidad.
+        \item \textbf{Azul}: material normal, recibe una transferencia suave de velocidad.
+        \item \textbf{Rojo}: material pesado, responde menos al choque.
+    \end{itemize}
+
+    \vspace{0.3cm}
+
+    Además:
+
+    \begin{itemize}
+        \item Ninguna partícula puede quedar con velocidad cero.
+        \item Se limita la velocidad máxima para mantener una simulación legible.
+        \item El usuario puede seleccionar color con \texttt{1}, \texttt{2}, \texttt{3} y emitir partículas con click.
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Metodología de medición}
+    \begin{itemize}
+        \item Se midió el frame completo, no solo el kernel.
+        \item Incluye simulación, construcción de datos visuales, copia y render OpenGL.
+        \item Se usaron 10 muestras por ejecutable y por tamaño $N$.
+        \item El benchmark recompila cada caso con el valor de partículas correspondiente.
+    \end{itemize}
+
+    \vspace{0.4cm}
+
+    Equipo usado:
+
+    \begin{itemize}
+        \item CPU: Intel Core i5-11400F, 6 núcleos / 12 hilos.
+        \item GPU: NVIDIA GeForce RTX 4060, 3072 núcleos CUDA.
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Demostración}
+    \begin{center}
+        \vspace{0.2cm}
+        \fbox{
+            \begin{minipage}[c][5.0cm][c]{0.82\textwidth}
+                \centering
+                Video de ejecución del sandbox con $N = 8192$ partículas\\[0.25cm]
+                CPU secuencial vs CUDA
+            \end{minipage}
+        }
+
+        \vspace{0.25cm}
+    \end{center}
+\end{frame}
+
+\begin{frame}{Resultados}
+    \begin{table}
+        \centering
+        \small
+        \begin{tabular}{rrrr}
+            \toprule
+            $N$ & CPU FPS & CUDA FPS & Speedup \\
+            \midrule
+            1024  & 383 & 600 & 1.57x \\
+            2048  & 147 & 552 & 3.76x \\
+            4096  & 46  & 530 & 11.64x \\
+            8192  & 12  & 369 & 29.93x \\
+            16384 & 3   & 338 & 110.37x \\
+            \bottomrule
+        \end{tabular}
+    \end{table}
+
+    {\scriptsize $N$ corresponde a la cantidad total de partículas simuladas.}
+
+    \vspace{0.25cm}
+
+    \begin{itemize}
+        \item Al aumentar $N$, el costo cuadrático se vuelve dominante en CPU.
+        \item En $N = 16384$, CPU baja a aproximadamente 3 FPS.
+        \item CUDA mantiene más de 300 FPS incluso con 268 millones de comparaciones por frame.
+        \item El speedup crece desde 1.57x hasta 110.37x.
+    \end{itemize}
+
+    \vspace{0.3cm}
+
+    Esto muestra que la GPU no cambia la complejidad teórica, pero sí cambia drásticamente la capacidad práctica de procesar el trabajo.
+\end{frame}
+
+\begin{frame}{Dificultades encontradas}
+    \begin{itemize}
+        \item OpenCL en WSL no expuso correctamente la GPU NVIDIA.
+        \item Se decidió usar CUDA como backend GPU principal.
+        \item Fue necesario mantener reglas equivalentes en CPU y CUDA.
+        \item Se debió evitar que varias hebras escribieran la misma partícula.
+        \item Hubo que ajustar velocidades para evitar simulaciones visualmente caóticas.
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Cumplimiento de la propuesta}
+    La propuesta indicaba que una simulación de partículas se beneficiaría de una implementación paralela porque:
+
+    \begin{itemize}
+        \item muchas partículas deben actualizar posición, velocidad y estado;
+        \item la comparación directa entre partículas escala muy rápido;
+        \item muchas operaciones pueden calcularse de manera independiente;
+        \item la GPU puede procesar múltiples partículas simultáneamente.
+    \end{itemize}
+
+    \vspace{0.3cm}
+
+    Los resultados confirman esa hipótesis: al crecer $N$, la CPU secuencial cae fuertemente, mientras CUDA mantiene una simulación fluida.
+\end{frame}
+
+\begin{frame}{Conclusión}
+    \begin{itemize}
+        \item Se implementó un sandbox 2D interactivo con reglas personalizadas.
+        \item Se comparó CPU secuencial contra CUDA usando la misma lógica $O(N^2)$.
+        \item CUDA obtuvo mejoras crecientes al aumentar el número de partículas.
+        \item La mayor mejora medida fue de aproximadamente 110x con $N = 16384$.
+        \item El proyecto cumple el objetivo de demostrar visual y cuantitativamente el beneficio del paralelismo en GPU.
+    \end{itemize}
+\end{frame}
+
+\end{document}

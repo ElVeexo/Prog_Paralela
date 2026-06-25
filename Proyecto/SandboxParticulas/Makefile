@@ -2,6 +2,7 @@ CXX := g++
 CC := gcc
 NVCC := nvcc
 OS := $(shell uname -s)
+particle_N := 4096
 
 ifeq ($(findstring MINGW,$(OS)),MINGW)
     # Windows / MSYS2
@@ -14,15 +15,20 @@ else
 endif
 
 PROJECT_DIR := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
+ROOT_DIR := $(abspath $(PROJECT_DIR)/../..)
+PRESENTATION_DIR := $(ROOT_DIR)/Proyecto/Presentación
+PRESENTATION_TEX := presentacion_sandbox_particulas.tex
 BUILD_DIR := $(PROJECT_DIR)/build
 INCLUDES := -I$(PROJECT_DIR)/include -I$(PROJECT_DIR)/src
+PARTICLE_N := $(or $(PARTICLE_COUNT),$(N),$(particle_N))
+CONFIG_DEFINES := -DPARTICLE_COUNT_OVERRIDE=$(PARTICLE_N)
 
-CXXFLAGS := -std=c++17 -O2 -Wall -Wextra $(INCLUDES)
-CFLAGS := -O2 -Wall -Wextra $(INCLUDES)
-NVCCFLAGS := -std=c++14 -O2 $(INCLUDES) -ccbin $(NVCC_HOST_CXX)
+CXXFLAGS := -std=c++17 -O2 -Wall -Wextra $(INCLUDES) $(CONFIG_DEFINES)
+CFLAGS := -O2 -Wall -Wextra $(INCLUDES) $(CONFIG_DEFINES)
+NVCCFLAGS := -std=c++14 -O2 $(INCLUDES) $(CONFIG_DEFINES) -ccbin $(NVCC_HOST_CXX)
 CL_LIBS := -lOpenCL
 
-.PHONY: all all3 cuda runCPU runGPU runCUDA install-all install-all-ubuntu install-deps-ubuntu install-opencl-runtime-ubuntu install-cuda-ubuntu check-opencl check-cuda clean
+.PHONY: all all3 cuda runCPU runGPU runCUDA runCPU_N runCUDA_N presen install-all install-all-ubuntu install-deps-ubuntu install-opencl-runtime-ubuntu install-cuda-ubuntu check-opencl check-cuda clean
 
 all: $(BUILD_DIR)/sandboxCPU $(BUILD_DIR)/sandboxGPU
 
@@ -53,6 +59,25 @@ runGPU: $(BUILD_DIR)/sandboxGPU
 
 runCUDA: $(BUILD_DIR)/sandboxCUDA
 	cd $(PROJECT_DIR) && $(BUILD_DIR)/sandboxCUDA
+
+runCPU_%:
+	$(MAKE) -B -C $(PROJECT_DIR) PARTICLE_COUNT=$* $(BUILD_DIR)/sandboxCPU
+	cd $(PROJECT_DIR) && $(BUILD_DIR)/sandboxCPU
+
+runCUDA_%:
+	$(MAKE) -B -C $(PROJECT_DIR) PARTICLE_COUNT=$* $(BUILD_DIR)/sandboxCUDA
+	cd $(PROJECT_DIR) && $(BUILD_DIR)/sandboxCUDA
+
+runCPU_N:
+	$(MAKE) -B -C $(PROJECT_DIR) particle_N=$(PARTICLE_N) $(BUILD_DIR)/sandboxCPU
+	cd $(PROJECT_DIR) && $(BUILD_DIR)/sandboxCPU
+
+runCUDA_N:
+	$(MAKE) -B -C $(PROJECT_DIR) particle_N=$(PARTICLE_N) $(BUILD_DIR)/sandboxCUDA
+	cd $(PROJECT_DIR) && $(BUILD_DIR)/sandboxCUDA
+
+presen:
+	cd $(PRESENTATION_DIR) && pdflatex -interaction=nonstopmode -halt-on-error $(PRESENTATION_TEX)
 
 install-all: install-all-ubuntu
 

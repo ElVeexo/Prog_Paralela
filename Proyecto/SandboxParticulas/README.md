@@ -68,6 +68,34 @@ make runCPU
 make runCUDA
 ```
 
+Para ejecutar con una cantidad especifica de particulas sin editar
+`include/config.hpp`, modificar esta variable en el `Makefile`:
+
+```makefile
+particle_N := 4096
+```
+
+Luego ejecutar:
+
+```bash
+make runCPU_N
+make runCUDA_N
+```
+
+Tambien existen targets rapidos:
+
+```bash
+make runCPU_4096
+make runCUDA_4096
+```
+
+Opcionalmente, se puede sobrescribir desde el comando:
+
+```bash
+make runCPU_N particle_N=4096
+make runCUDA_N particle_N=4096
+```
+
 ## Controles
 
 - `SPACE`: pausar/reanudar.
@@ -104,6 +132,17 @@ Variables principales:
 - `DEFAULT_DAMPING`: amortiguacion aplicada a la velocidad en cada frame.
 - `WALL_BOUNCE`: perdida/conservacion de velocidad al rebotar con paredes.
 - `FIXED_DT`: paso de tiempo fijo de la simulacion.
+- `MIN_PARTICLE_SPEED`: velocidad minima para que ninguna particula quede detenida.
+- `MAX_PARTICLE_SPEED`: velocidad maxima para evitar explosiones numericas.
+- `GREEN_GREEN_SPEEDUP`: aceleracion de verde al chocar con verde.
+- `GREEN_BLUE_SPEEDUP`: aceleracion de verde al chocar con azul.
+- `GREEN_RED_SPEEDUP`: aceleracion de verde al chocar con rojo.
+- `BLUE_VELOCITY_TRANSFER`: cuanto de la velocidad de la otra particula hereda la azul.
+- `BLUE_COLLISION_DAMPING`: amortiguacion extra que recibe la azul al chocar.
+- `BLUE_NORMAL_PUSH`: empuje propio de la azul al separarse de otra particula.
+- `RED_GREEN_RESPONSE`: respuesta de la roja al chocar con verde.
+- `RED_BLUE_RESPONSE`: respuesta de la roja al chocar con azul.
+- `RED_RED_RESPONSE`: respuesta de la roja al chocar con roja.
 - `EMIT_COUNT`: cantidad de particulas emitidas por click. Para este proyecto queda en `1`.
 - `EMIT_SPREAD`: dispersion aleatoria alrededor del cursor al emitir.
 - `EMIT_SPEED`: rango de velocidad inicial de la particula emitida.
@@ -118,6 +157,13 @@ N = 1024, 4096, 8192, 16384
 ```
 
 ## Reglas de Particulas
+
+La explicacion detallada de campos, estados, colisiones y ejemplos de cambios
+esta en:
+
+```text
+GUIA_REGLAS_PARTICULAS.md
+```
 
 Las estructuras compartidas estan en:
 
