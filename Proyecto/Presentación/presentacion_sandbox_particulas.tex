@@ -153,10 +153,10 @@ for (int tileStart = 0; tileStart < N; tileStart += blockDim.x) {
 
 \begin{frame}{Metodología de medición}
     \begin{itemize}
-        \item Se midió el frame completo, no solo el kernel.
-        \item Incluye simulación, construcción de datos visuales, copia y render OpenGL.
-        \item Se usaron 10 muestras por ejecutable y por tamaño $N$.
-        \item El benchmark recompila cada caso con el valor de partículas correspondiente.
+        \item Tiempo por frame medido con \texttt{std::chrono}.
+        \item Primeros 30 frames descartados como calentamiento.
+        \item FPS promedio actualizado en consola cada 60 frames.
+        \item Misma cantidad $N$ y misma lógica $O(N^2)$ en CPU y CUDA.
     \end{itemize}
 
     \vspace{0.4cm}
@@ -169,14 +169,15 @@ for (int tileStart = 0; tileStart < N; tileStart += blockDim.x) {
     \end{itemize}
 \end{frame}
 
-\begin{frame}{Demostración}
+\begin{frame}{Demostración en vivo}
     \begin{center}
         \vspace{0.2cm}
         \fbox{
             \begin{minipage}[c][5.0cm][c]{0.82\textwidth}
                 \centering
-                Video de ejecución del sandbox con $N = 8192$ partículas\\[0.25cm]
-                CPU secuencial vs CUDA
+                Ejecución del sandbox durante la presentación\\[0.25cm]
+                Comparación directa: CPU secuencial vs CUDA\\[0.25cm]
+                Cantidad de partículas ajustada según el equipo disponible
             \end{minipage}
         }
 
@@ -250,6 +251,12 @@ for (int tileStart = 0; tileStart < N; tileStart += blockDim.x) {
         \item La mayor mejora medida fue de aproximadamente 110x con $N = 16384$.
         \item El proyecto cumple el objetivo de demostrar visual y cuantitativamente el beneficio del paralelismo en GPU.
     \end{itemize}
+\end{frame}
+
+\begin{frame}
+    \centering
+    \vspace{1.0cm}
+    {\Huge Gracias por su atención}
 \end{frame}
 
 \end{document}
