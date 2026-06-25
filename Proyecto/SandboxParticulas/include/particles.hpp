@@ -64,6 +64,7 @@ inline Particle make_particle(float x, float y, float vx, float vy, int type) {
 }
 
 inline std::vector<Particle> crear_particulas(int count, unsigned int seed) {
+    // Crear partículas con posiciones y velocidades aleatorias dentro de los límites del mundo cuando inicia o se reinicia la simulación
     std::mt19937 rng(seed);
     std::uniform_real_distribution<float> posX(Config::WORLD_MIN_X + 0.06f,
                                                Config::WORLD_MAX_X - 0.06f);
@@ -82,6 +83,8 @@ inline std::vector<Particle> crear_particulas(int count, unsigned int seed) {
 }
 
 inline void limitar_velocidad_cpu(Particle& p) {
+    // Dado que se forma un cáos al colisionar las partículas, además de que aumentamos la cantidad
+    // es ncesario limitar la velocidad de las partículas para que no se salgan de la pantalla y se mantenga un comportamiento estable y visible
     const float vx = p.vel_misc.x;
     const float vy = p.vel_misc.y;
     const float speed2 = vx * vx + vy * vy;
@@ -109,6 +112,7 @@ inline void limitar_velocidad_cpu(Particle& p) {
 }
 
 inline void aplicar_interaccion_cpu(Particle& p, const Particle& q) {
+    // Definir el comportamiento de las partículas según sus tipos y estados
     const float dx = p.pos_radius.x - q.pos_radius.x;
     const float dy = p.pos_radius.y - q.pos_radius.y;
     const float dist2 = dx * dx + dy * dy;
@@ -168,6 +172,7 @@ inline void aplicar_interaccion_cpu(Particle& p, const Particle& q) {
 }
 
 inline void integrar_y_rebotar_cpu(Particle& p, float dt) {
+    // Integrar la posición y aplicar rebotes en los límites del mundo
     p.pos_radius.x += p.vel_misc.x * dt;
     p.pos_radius.y += p.vel_misc.y * dt;
     p.vel_misc.x *= p.vel_misc.z;
@@ -203,6 +208,7 @@ inline void integrar_y_rebotar_cpu(Particle& p, float dt) {
 inline void update_cpu_naive(const std::vector<Particle>& in,
                              std::vector<Particle>& out,
                              float dt) {
+    // Bucle principal para actualizar las partículas de manera secuencial
     const int count = static_cast<int>(in.size());
 
     for (int i = 0; i < count; ++i) {
@@ -222,6 +228,7 @@ inline void update_cpu_naive(const std::vector<Particle>& in,
 
 inline void build_render_particles_cpu(const std::vector<Particle>& particles,
                                        std::vector<RenderParticle>& renderParticles) {
+    // Renderizar las partículas para la visualización
     const std::size_t count = particles.size();
     renderParticles.resize(count);
 
@@ -237,6 +244,7 @@ inline void build_render_particles_cpu(const std::vector<Particle>& particles,
 }
 
 inline float screen_to_world_x(double mouseX) {
+    // Convertir las coordenadas de la pantalla a coordenadas del mundo (van del -1.0f al 1.0f)
     const float normalized = static_cast<float>(mouseX) / static_cast<float>(Config::WINDOW_WIDTH);
     return Config::WORLD_MIN_X + normalized * (Config::WORLD_MAX_X - Config::WORLD_MIN_X);
 }
@@ -252,6 +260,7 @@ inline void emit_particles(std::vector<Particle>& particles,
                            float y,
                            int material,
                            unsigned int seed) {
+    // Inicialización de generadores de números aleatorios para la dispersión y velocidad de las partículas emitidas
     if (particles.empty()) {
         return;
     }
