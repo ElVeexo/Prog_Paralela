@@ -37,32 +37,28 @@ La estructura principal esta en `include/particles.hpp`:
 
 ```cpp
 struct Particle {
-    Float4 pos_radius;
-    Float4 vel_misc;
+    float x;
+    float y;
+    float radius;
+    float vx;
+    float vy;
+    float damping;
     std::int32_t type;
-    std::int32_t state;
     float energy;
-    std::int32_t padding;
 };
 ```
 
 Sus campos se usan asi:
 
 ```text
-pos_radius.x = posicion X
-pos_radius.y = posicion Y
-pos_radius.z = radio visual/fisico
-pos_radius.w = sin uso
-
-vel_misc.x = velocidad X
-vel_misc.y = velocidad Y
-vel_misc.z = damping/amortiguacion
-vel_misc.w = sin uso
-
-type   = material/color de la particula
-state  = estado logico/visual
-energy = intensidad temporal para brillo/cambio visual
-padding = relleno para mantener layout/alineacion
+x       = posicion X
+y       = posicion Y
+radius  = radio visual/fisico
+vx      = velocidad X
+vy      = velocidad Y
+damping = amortiguacion de velocidad
+type    = material/color de la particula
+energy  = intensidad temporal para brillo/cambio visual
 ```
 
 Los materiales actuales son:
@@ -75,29 +71,10 @@ enum MaterialType {
 };
 ```
 
-Los estados actuales son:
-
-```cpp
-enum ParticleState {
-    STATE_NORMAL = 0,
-    STATE_ALTERED = 1
-};
-```
-
-`STATE_ALTERED` hoy no cambia la fisica por si solo. Se usa como marca de que
-una particula fue alterada recientemente. En el codigo actual, cuando `energy`
-llega a `0`, el estado vuelve a `STATE_NORMAL`:
-
-```cpp
-p.energy = std::max(0.0f, p.energy - dt);
-if (p.energy <= 0.0f) {
-    p.state = STATE_NORMAL;
-}
-```
-
-El brillo visible depende de `energy`, no directamente de `state`. Al final de
-cada integracion tambien se limita la velocidad para que ninguna particula quede
-detenida ni se dispare sin control:
+El brillo visible depende de `energy`. Cuando una particula colisiona, `energy`
+sube; luego baja frame a frame hasta volver a `0`. Al final de cada integracion
+tambien se limita la velocidad para que ninguna particula quede detenida ni se
+dispare sin control:
 
 ```cpp
 limitar_velocidad_cpu(p);
@@ -108,7 +85,7 @@ limitar_velocidad_cpu(p);
 En CPU, cada frame llama:
 
 ```cpp
-update_cpu_naive(particlesIn, particlesOut, Config::FIXED_DT);
+update_cpu_secuencial(particlesIn, particlesOut, Config::FIXED_DT);
 ```
 
 La funcion hace una comparacion `O(N^2)`:
@@ -145,10 +122,10 @@ misma idea: cada hilo escribe solo su propia particula.
 En `aplicar_interaccion_cpu`:
 
 ```cpp
-const float dx = p.pos_radius.x - q.pos_radius.x;
-const float dy = p.pos_radius.y - q.pos_radius.y;
+const float dx = p.x - q.x;
+const float dy = p.y - q.y;
 const float dist2 = dx * dx + dy * dy;
-const float minDist = p.pos_radius.z + q.pos_radius.z;
+const float minDist = p.radius + q.radius;
 
 if (dist2 <= 0.000001f || dist2 >= minDist * minDist) {
     return;
@@ -185,13 +162,15 @@ Los numeros se ajustan desde `include/config.hpp`:
 
 ```cpp
 constexpr float MIN_PARTICLE_SPEED = 0.015f;
-constexpr float MAX_PARTICLE_SPEED = 1.50f;
+constexpr float MAX_PARTICLE_SPEED = 0.32f;
 
-constexpr float GREEN_GREEN_SPEEDUP = 2.00f;
-constexpr float GREEN_BLUE_SPEEDUP = 1.25f;
-constexpr float GREEN_RED_SPEEDUP = 1.50f;
+constexpr float GREEN_GREEN_SPEEDUP = 1.02f;
+constexpr float GREEN_BLUE_SPEEDUP = 1.04f;
+constexpr float GREEN_RED_SPEEDUP = 1.08f;
 
-constexpr float BLUE_VELOCITY_TRANSFER = 1.00f;
+constexpr float BLUE_VELOCITY_TRANSFER = 0.04f;
+constexpr float BLUE_COLLISION_DAMPING = 0.92f;
+constexpr float BLUE_NORMAL_PUSH = 0.006f;
 
 constexpr float RED_GREEN_RESPONSE = 0.35f;
 constexpr float RED_BLUE_RESPONSE = 0.50f;
@@ -204,34 +183,31 @@ La verde gana velocidad al chocar:
 
 ```cpp
 if (p.type == MATERIAL_GREEN && q.type == MATERIAL_GREEN) {
-    p.vel_misc.x *= Config::GREEN_GREEN_SPEEDUP;
-    p.vel_misc.y *= Config::GREEN_GREEN_SPEEDUP;
-    p.vel_misc.x += nx * 0.02f;
-    p.vel_misc.y += ny * 0.02f;
+    p.vx *= Config::GREEN_GREEN_SPEEDUP;
+    p.vy *= Config::GREEN_GREEN_SPEEDUP;
+    p.vx += nx * 0.02f;
+    p.vy += ny * 0.02f;
     p.energy = 0.8f;
-    p.state = STATE_ALTERED;
 } else if (p.type == MATERIAL_GREEN && q.type == MATERIAL_BLUE) {
-    p.vel_misc.x *= Config::GREEN_BLUE_SPEEDUP;
-    p.vel_misc.y *= Config::GREEN_BLUE_SPEEDUP;
-    p.vel_misc.x += nx * 0.02f;
-    p.vel_misc.y += ny * 0.02f;
+    p.vx *= Config::GREEN_BLUE_SPEEDUP;
+    p.vy *= Config::GREEN_BLUE_SPEEDUP;
+    p.vx += nx * 0.02f;
+    p.vy += ny * 0.02f;
     p.energy = 0.7f;
-    p.state = STATE_ALTERED;
 } else if (p.type == MATERIAL_GREEN && q.type == MATERIAL_RED) {
-    p.vel_misc.x *= Config::GREEN_RED_SPEEDUP;
-    p.vel_misc.y *= Config::GREEN_RED_SPEEDUP;
-    p.vel_misc.x += nx * 0.03f;
-    p.vel_misc.y += ny * 0.03f;
+    p.vx *= Config::GREEN_RED_SPEEDUP;
+    p.vy *= Config::GREEN_RED_SPEEDUP;
+    p.vx += nx * 0.03f;
+    p.vy += ny * 0.03f;
     p.energy = 1.0f;
-    p.state = STATE_ALTERED;
 }
 ```
 
 Efecto:
 
-- verde con verde acelera fuerte (`x2.00`);
-- verde con azul acelera moderado (`x1.25`);
-- verde con rojo acelera alto (`x1.50`);
+- verde con verde acelera levemente (`x1.02`);
+- verde con azul acelera un poco mas (`x1.04`);
+- verde con rojo acelera mas que en los otros casos (`x1.08`);
 - `energy` sube para verse mas brillante.
 
 ### Azul: Material Normal
@@ -241,18 +217,19 @@ choca:
 
 ```cpp
 else if (p.type == MATERIAL_BLUE) {
-    p.vel_misc.x += q.vel_misc.x * Config::BLUE_VELOCITY_TRANSFER;
-    p.vel_misc.y += q.vel_misc.y * Config::BLUE_VELOCITY_TRANSFER;
-    p.vel_misc.x += nx * 0.02f;
-    p.vel_misc.y += ny * 0.02f;
+    p.vx = p.vx * Config::BLUE_COLLISION_DAMPING +
+           q.vx * Config::BLUE_VELOCITY_TRANSFER +
+           nx * Config::BLUE_NORMAL_PUSH;
+    p.vy = p.vy * Config::BLUE_COLLISION_DAMPING +
+           q.vy * Config::BLUE_VELOCITY_TRANSFER +
+           ny * Config::BLUE_NORMAL_PUSH;
     p.energy = 0.6f;
-    p.state = STATE_ALTERED;
 }
 ```
 
 Efecto:
 
-- si choca con algo rapido, hereda bastante movimiento;
+- si choca con algo rapido, hereda una fraccion pequeña de movimiento;
 - si choca con algo lento, cambia poco;
 - funciona como material intermedio.
 
@@ -262,16 +239,16 @@ La roja no multiplica velocidad. Solo recibe empujes pequeños segun el material
 
 ```cpp
 else if (p.type == MATERIAL_RED && q.type == MATERIAL_GREEN) {
-    p.vel_misc.x += nx * Config::RED_GREEN_RESPONSE * 0.02f;
-    p.vel_misc.y += ny * Config::RED_GREEN_RESPONSE * 0.02f;
+    p.vx += nx * Config::RED_GREEN_RESPONSE * 0.02f;
+    p.vy += ny * Config::RED_GREEN_RESPONSE * 0.02f;
     p.energy = 0.35f;
 } else if (p.type == MATERIAL_RED && q.type == MATERIAL_BLUE) {
-    p.vel_misc.x += nx * Config::RED_BLUE_RESPONSE * 0.02f;
-    p.vel_misc.y += ny * Config::RED_BLUE_RESPONSE * 0.02f;
+    p.vx += nx * Config::RED_BLUE_RESPONSE * 0.02f;
+    p.vy += ny * Config::RED_BLUE_RESPONSE * 0.02f;
     p.energy = 0.45f;
 } else if (p.type == MATERIAL_RED && q.type == MATERIAL_RED) {
-    p.vel_misc.x += nx * Config::RED_RED_RESPONSE * 0.02f;
-    p.vel_misc.y += ny * Config::RED_RED_RESPONSE * 0.02f;
+    p.vx += nx * Config::RED_RED_RESPONSE * 0.02f;
+    p.vy += ny * Config::RED_RED_RESPONSE * 0.02f;
     p.energy = 0.25f;
 }
 ```
@@ -294,18 +271,18 @@ integrar_y_rebotar_cpu(p, dt);
 Primero actualiza posicion:
 
 ```cpp
-p.pos_radius.x += p.vel_misc.x * dt;
-p.pos_radius.y += p.vel_misc.y * dt;
+p.x += p.vx * dt;
+p.y += p.vy * dt;
 ```
 
 Luego aplica amortiguacion:
 
 ```cpp
-p.vel_misc.x *= p.vel_misc.z;
-p.vel_misc.y *= p.vel_misc.z;
+p.vx *= p.damping;
+p.vy *= p.damping;
 ```
 
-`p.vel_misc.z` viene de:
+`p.damping` viene de:
 
 ```cpp
 Config::DEFAULT_DAMPING
@@ -314,9 +291,9 @@ Config::DEFAULT_DAMPING
 Si la particula toca los limites del mundo, se reposiciona y rebota:
 
 ```cpp
-if (p.pos_radius.x < Config::WORLD_MIN_X + radius) {
-    p.pos_radius.x = Config::WORLD_MIN_X + radius;
-    p.vel_misc.x *= -Config::WALL_BOUNCE;
+if (p.x < Config::WORLD_MIN_X + radius) {
+    p.x = Config::WORLD_MIN_X + radius;
+    p.vx *= -Config::WALL_BOUNCE;
 }
 ```
 
@@ -349,10 +326,9 @@ Ejemplo: hacer que roja contra verde duplique la velocidad de la roja:
 
 ```cpp
 if (p.type == MATERIAL_RED && q.type == MATERIAL_GREEN) {
-    p.vel_misc.x *= 2.0f;
-    p.vel_misc.y *= 2.0f;
+    p.vx *= 2.0f;
+    p.vy *= 2.0f;
     p.energy = 1.0f;
-    p.state = STATE_ALTERED;
 }
 ```
 
@@ -360,8 +336,8 @@ Para que verde contra azul se ralentice mucho:
 
 ```cpp
 else if (p.type == MATERIAL_GREEN && q.type == MATERIAL_BLUE) {
-    p.vel_misc.x *= 0.50f;
-    p.vel_misc.y *= 0.50f;
+    p.vx *= 0.50f;
+    p.vy *= 0.50f;
     p.energy = 0.5f;
 }
 ```
@@ -370,10 +346,9 @@ Para que azul contra roja rebote mas fuerte:
 
 ```cpp
 else if (p.type == MATERIAL_BLUE && q.type == MATERIAL_RED) {
-    p.vel_misc.x += nx * 0.10f;
-    p.vel_misc.y += ny * 0.10f;
+    p.vx += nx * 0.10f;
+    p.vy += ny * 0.10f;
     p.energy = 1.0f;
-    p.state = STATE_ALTERED;
 }
 ```
 
@@ -392,13 +367,12 @@ Ejemplo completo:
 
 ```cpp
 if (p.type == MATERIAL_RED && q.type == MATERIAL_GREEN) {
-    p.vel_misc.x *= 2.0f;
-    p.vel_misc.y *= 2.0f;
+    p.vx *= 2.0f;
+    p.vy *= 2.0f;
     p.energy = 1.0f;
-    p.state = STATE_ALTERED;
 } else if (p.type == MATERIAL_GREEN && q.type == MATERIAL_RED) {
-    p.vel_misc.x *= 0.50f;
-    p.vel_misc.y *= 0.50f;
+    p.vx *= 0.50f;
+    p.vy *= 0.50f;
     p.energy = 0.4f;
 }
 ```
@@ -420,8 +394,8 @@ Ejemplo CPU simple:
 
 ```cpp
 inline bool pseudo_random_choice(const Particle& p, const Particle& q) {
-    const int a = static_cast<int>((p.pos_radius.x + 1.0f) * 10000.0f);
-    const int b = static_cast<int>((q.pos_radius.y + 1.0f) * 10000.0f);
+    const int a = static_cast<int>((p.x + 1.0f) * 10000.0f);
+    const int b = static_cast<int>((q.y + 1.0f) * 10000.0f);
     return ((a * 73856093) ^ (b * 19349663)) & 1;
 }
 ```
@@ -431,15 +405,14 @@ Luego:
 ```cpp
 if (p.type == MATERIAL_RED && q.type == MATERIAL_GREEN) {
     if (pseudo_random_choice(p, q)) {
-        p.vel_misc.x *= 2.0f;
-        p.vel_misc.y *= 2.0f;
+        p.vx *= 2.0f;
+        p.vy *= 2.0f;
         p.energy = 1.0f;
     } else {
-        p.vel_misc.x *= 0.50f;
-        p.vel_misc.y *= 0.50f;
+        p.vx *= 0.50f;
+        p.vy *= 0.50f;
         p.energy = 0.4f;
     }
-    p.state = STATE_ALTERED;
 }
 ```
 
@@ -447,8 +420,8 @@ Para CUDA, se debe crear la misma funcion como `__device__` en `src/mainCUDA.cu`
 
 ```cpp
 __device__ bool pseudo_random_choice_cuda(const Particle& p, const Particle& q) {
-    const int a = static_cast<int>((p.pos_radius.x + 1.0f) * 10000.0f);
-    const int b = static_cast<int>((q.pos_radius.y + 1.0f) * 10000.0f);
+    const int a = static_cast<int>((p.x + 1.0f) * 10000.0f);
+    const int b = static_cast<int>((q.y + 1.0f) * 10000.0f);
     return ((a * 73856093) ^ (b * 19349663)) & 1;
 }
 ```
@@ -461,10 +434,9 @@ Si cambias esto en CPU:
 
 ```cpp
 if (p.type == MATERIAL_RED && q.type == MATERIAL_GREEN) {
-    p.vel_misc.x *= 2.0f;
-    p.vel_misc.y *= 2.0f;
+    p.vx *= 2.0f;
+    p.vy *= 2.0f;
     p.energy = 1.0f;
-    p.state = STATE_ALTERED;
 }
 ```
 
@@ -475,10 +447,9 @@ __device__ void aplicar_interaccion_cuda(Particle& p, const Particle& q) {
     // deteccion de colision...
 
     if (p.type == MATERIAL_RED && q.type == MATERIAL_GREEN) {
-        p.vel_misc.x *= 2.0f;
-        p.vel_misc.y *= 2.0f;
+        p.vx *= 2.0f;
+        p.vy *= 2.0f;
         p.energy = 1.0f;
-        p.state = STATE_ALTERED;
     }
 }
 ```
@@ -489,11 +460,10 @@ La regla debe ser igual para que CPU y CUDA hagan la misma simulacion.
 
 Cambios comunes:
 
-- Mas velocidad: multiplicar `p.vel_misc.x/y` por un valor mayor que `1.0f`.
-- Menos velocidad: multiplicar `p.vel_misc.x/y` por un valor entre `0.0f` y `1.0f`.
+- Mas velocidad: multiplicar `p.vx/y` por un valor mayor que `1.0f`.
+- Menos velocidad: multiplicar `p.vx/y` por un valor entre `0.0f` y `1.0f`.
 - Empuje direccional: sumar `nx * fuerza` y `ny * fuerza`.
 - Brillo temporal: subir `p.energy`.
-- Estado alterado: asignar `p.state = STATE_ALTERED`.
 - Cambiar material: asignar `p.type = MATERIAL_RED`, `MATERIAL_GREEN` o `MATERIAL_BLUE`.
 
 Ejemplo: una particula azul se convierte en roja al chocar con verde:
@@ -502,7 +472,6 @@ Ejemplo: una particula azul se convierte en roja al chocar con verde:
 else if (p.type == MATERIAL_BLUE && q.type == MATERIAL_GREEN) {
     p.type = MATERIAL_RED;
     p.energy = 1.0f;
-    p.state = STATE_ALTERED;
 }
 ```
 
@@ -510,8 +479,8 @@ Ejemplo: verdes se repelen muy fuerte entre ellas:
 
 ```cpp
 else if (p.type == MATERIAL_GREEN && q.type == MATERIAL_GREEN) {
-    p.vel_misc.x += nx * 0.12f;
-    p.vel_misc.y += ny * 0.12f;
+    p.vx += nx * 0.12f;
+    p.vy += ny * 0.12f;
     p.energy = 0.7f;
 }
 ```

@@ -2,16 +2,15 @@
 #define MATERIAL_GREEN 1
 #define MATERIAL_BLUE 2
 
-#define STATE_NORMAL 0
-#define STATE_ALTERED 1
-
 typedef struct {
-    float4 pos_radius;
-    float4 vel_misc;
+    float x;
+    float y;
+    float radius;
+    float vx;
+    float vy;
+    float damping;
     int type;
-    int state;
     float energy;
-    int padding;
 } Particle;
 
 typedef struct {
@@ -23,11 +22,11 @@ typedef struct {
 } RenderParticle;
 
 void aplicar_interaccion_opencl(Particle* p, const Particle q) {
-    const float2 pos = (float2)(p->pos_radius.x, p->pos_radius.y);
-    const float2 qpos = (float2)(q.pos_radius.x, q.pos_radius.y);
+    const float2 pos = (float2)(p->x, p->y);
+    const float2 qpos = (float2)(q.x, q.y);
     const float2 delta = pos - qpos;
     const float dist2 = dot(delta, delta);
-    const float minDist = p->pos_radius.z + q.pos_radius.z;
+    const float minDist = p->radius + q.radius;
 
     if (dist2 <= 0.000001f || dist2 >= minDist * minDist) {
         return;
@@ -36,56 +35,51 @@ void aplicar_interaccion_opencl(Particle* p, const Particle q) {
     const float invDist = rsqrt(dist2);
     const float2 normal = delta * invDist;
 
-    p->vel_misc.x += normal.x * 0.02f;
-    p->vel_misc.y += normal.y * 0.02f;
+    p->vx += normal.x * 0.02f;
+    p->vy += normal.y * 0.02f;
 
     if (p->type == MATERIAL_RED && q.type == MATERIAL_GREEN) {
-        const float oldVx = p->vel_misc.x;
-        p->vel_misc.x = -p->vel_misc.y * 1.20f;
-        p->vel_misc.y = oldVx * 1.20f;
+        const float oldVx = p->vx;
+        p->vx = -p->vy * 1.20f;
+        p->vy = oldVx * 1.20f;
         p->energy = 1.0f;
-        p->state = STATE_ALTERED;
     } else if (p->type == MATERIAL_GREEN && q.type == MATERIAL_BLUE) {
-        p->vel_misc.x *= 0.92f;
-        p->vel_misc.y *= 0.92f;
+        p->vx *= 0.92f;
+        p->vy *= 0.92f;
         p->energy = 0.5f;
     } else if (p->type == MATERIAL_BLUE && q.type == MATERIAL_RED) {
-        p->vel_misc.x += normal.x * 0.03f;
-        p->vel_misc.y += normal.y * 0.03f;
+        p->vx += normal.x * 0.03f;
+        p->vy += normal.y * 0.03f;
         p->energy = 1.0f;
-        p->state = STATE_ALTERED;
     }
 }
 
 void integrar_y_rebotar_opencl(Particle* p, const float dt) {
-    p->pos_radius.x += p->vel_misc.x * dt;
-    p->pos_radius.y += p->vel_misc.y * dt;
-    p->vel_misc.x *= p->vel_misc.z;
-    p->vel_misc.y *= p->vel_misc.z;
+    p->x += p->vx * dt;
+    p->y += p->vy * dt;
+    p->vx *= p->damping;
+    p->vy *= p->damping;
 
-    const float radius = p->pos_radius.z;
+    const float radius = p->radius;
 
-    if (p->pos_radius.x < WORLD_MIN_X + radius) {
-        p->pos_radius.x = WORLD_MIN_X + radius;
-        p->vel_misc.x *= -WALL_BOUNCE;
+    if (p->x < WORLD_MIN_X + radius) {
+        p->x = WORLD_MIN_X + radius;
+        p->vx *= -WALL_BOUNCE;
     }
-    if (p->pos_radius.x > WORLD_MAX_X - radius) {
-        p->pos_radius.x = WORLD_MAX_X - radius;
-        p->vel_misc.x *= -WALL_BOUNCE;
+    if (p->x > WORLD_MAX_X - radius) {
+        p->x = WORLD_MAX_X - radius;
+        p->vx *= -WALL_BOUNCE;
     }
-    if (p->pos_radius.y < WORLD_MIN_Y + radius) {
-        p->pos_radius.y = WORLD_MIN_Y + radius;
-        p->vel_misc.y *= -WALL_BOUNCE;
+    if (p->y < WORLD_MIN_Y + radius) {
+        p->y = WORLD_MIN_Y + radius;
+        p->vy *= -WALL_BOUNCE;
     }
-    if (p->pos_radius.y > WORLD_MAX_Y - radius) {
-        p->pos_radius.y = WORLD_MAX_Y - radius;
-        p->vel_misc.y *= -WALL_BOUNCE;
+    if (p->y > WORLD_MAX_Y - radius) {
+        p->y = WORLD_MAX_Y - radius;
+        p->vy *= -WALL_BOUNCE;
     }
 
     p->energy = fmax(0.0f, p->energy - dt);
-    if (p->energy <= 0.0f) {
-        p->state = STATE_NORMAL;
-    }
 }
 
 __kernel void update_particles_tiled(
@@ -143,9 +137,9 @@ __kernel void build_render_particles(
     }
 
     const Particle p = particles[i];
-    renderParticles[i].x = p.pos_radius.x;
-    renderParticles[i].y = p.pos_radius.y;
-    renderParticles[i].radius = p.pos_radius.z;
+    renderParticles[i].x = p.x;
+    renderParticles[i].y = p.y;
+    renderParticles[i].radius = p.radius;
     renderParticles[i].type = p.type;
     renderParticles[i].energy = p.energy;
 }

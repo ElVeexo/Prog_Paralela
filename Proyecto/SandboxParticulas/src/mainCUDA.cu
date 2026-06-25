@@ -217,37 +217,37 @@ void write_emission_to_cuda(GLFWwindow* window,
 }
 
 __device__ void limitar_velocidad_cuda(Particle& p) {
-    const float vx = p.vel_misc.x;
-    const float vy = p.vel_misc.y;
+    const float vx = p.vx;
+    const float vy = p.vy;
     const float speed2 = vx * vx + vy * vy;
     const float minSpeed = Config::MIN_PARTICLE_SPEED;
     const float maxSpeed = Config::MAX_PARTICLE_SPEED;
 
     if (speed2 < minSpeed * minSpeed) {
         if (speed2 <= 0.000001f) {
-            p.vel_misc.x = minSpeed;
-            p.vel_misc.y = 0.0f;
+            p.vx = minSpeed;
+            p.vy = 0.0f;
             return;
         }
 
         const float invSpeed = rsqrtf(speed2);
-        p.vel_misc.x = vx * invSpeed * minSpeed;
-        p.vel_misc.y = vy * invSpeed * minSpeed;
+        p.vx = vx * invSpeed * minSpeed;
+        p.vy = vy * invSpeed * minSpeed;
         return;
     }
 
     if (speed2 > maxSpeed * maxSpeed) {
         const float invSpeed = rsqrtf(speed2);
-        p.vel_misc.x = vx * invSpeed * maxSpeed;
-        p.vel_misc.y = vy * invSpeed * maxSpeed;
+        p.vx = vx * invSpeed * maxSpeed;
+        p.vy = vy * invSpeed * maxSpeed;
     }
 }
 
 __device__ void aplicar_interaccion_cuda(Particle& p, const Particle& q) {
-    const float dx = p.pos_radius.x - q.pos_radius.x;
-    const float dy = p.pos_radius.y - q.pos_radius.y;
+    const float dx = p.x - q.x;
+    const float dy = p.y - q.y;
     const float dist2 = dx * dx + dy * dy;
-    const float minDist = p.pos_radius.z + q.pos_radius.z;
+    const float minDist = p.radius + q.radius;
 
     if (dist2 <= 0.000001f || dist2 >= minDist * minDist) {
         return;
@@ -258,79 +258,72 @@ __device__ void aplicar_interaccion_cuda(Particle& p, const Particle& q) {
     const float ny = dy * invDist;
 
     if (p.type == MATERIAL_GREEN && q.type == MATERIAL_GREEN) {
-        p.vel_misc.x *= Config::GREEN_GREEN_SPEEDUP;
-        p.vel_misc.y *= Config::GREEN_GREEN_SPEEDUP;
-        p.vel_misc.x += nx * 0.02f;
-        p.vel_misc.y += ny * 0.02f;
+        p.vx *= Config::GREEN_GREEN_SPEEDUP;
+        p.vy *= Config::GREEN_GREEN_SPEEDUP;
+        p.vx += nx * 0.02f;
+        p.vy += ny * 0.02f;
         p.energy = 0.8f;
-        p.state = STATE_ALTERED;
     } else if (p.type == MATERIAL_GREEN && q.type == MATERIAL_BLUE) {
-        p.vel_misc.x *= Config::GREEN_BLUE_SPEEDUP;
-        p.vel_misc.y *= Config::GREEN_BLUE_SPEEDUP;
-        p.vel_misc.x += nx * 0.02f;
-        p.vel_misc.y += ny * 0.02f;
+        p.vx *= Config::GREEN_BLUE_SPEEDUP;
+        p.vy *= Config::GREEN_BLUE_SPEEDUP;
+        p.vx += nx * 0.02f;
+        p.vy += ny * 0.02f;
         p.energy = 0.7f;
-        p.state = STATE_ALTERED;
     } else if (p.type == MATERIAL_GREEN && q.type == MATERIAL_RED) {
-        p.vel_misc.x *= Config::GREEN_RED_SPEEDUP;
-        p.vel_misc.y *= Config::GREEN_RED_SPEEDUP;
-        p.vel_misc.x += nx * 0.03f;
-        p.vel_misc.y += ny * 0.03f;
+        p.vx *= Config::GREEN_RED_SPEEDUP;
+        p.vy *= Config::GREEN_RED_SPEEDUP;
+        p.vx += nx * 0.03f;
+        p.vy += ny * 0.03f;
         p.energy = 1.0f;
-        p.state = STATE_ALTERED;
     } else if (p.type == MATERIAL_BLUE) {
-        p.vel_misc.x = p.vel_misc.x * Config::BLUE_COLLISION_DAMPING +
-                       q.vel_misc.x * Config::BLUE_VELOCITY_TRANSFER +
-                       nx * Config::BLUE_NORMAL_PUSH;
-        p.vel_misc.y = p.vel_misc.y * Config::BLUE_COLLISION_DAMPING +
-                       q.vel_misc.y * Config::BLUE_VELOCITY_TRANSFER +
-                       ny * Config::BLUE_NORMAL_PUSH;
+        p.vx = p.vx * Config::BLUE_COLLISION_DAMPING +
+               q.vx * Config::BLUE_VELOCITY_TRANSFER +
+               nx * Config::BLUE_NORMAL_PUSH;
+        p.vy = p.vy * Config::BLUE_COLLISION_DAMPING +
+               q.vy * Config::BLUE_VELOCITY_TRANSFER +
+               ny * Config::BLUE_NORMAL_PUSH;
         p.energy = 0.6f;
-        p.state = STATE_ALTERED;
     } else if (p.type == MATERIAL_RED && q.type == MATERIAL_GREEN) {
-        p.vel_misc.x += nx * Config::RED_GREEN_RESPONSE * 0.02f;
-        p.vel_misc.y += ny * Config::RED_GREEN_RESPONSE * 0.02f;
+        p.vx += nx * Config::RED_GREEN_RESPONSE * 0.02f;
+        p.vy += ny * Config::RED_GREEN_RESPONSE * 0.02f;
         p.energy = 0.35f;
     } else if (p.type == MATERIAL_RED && q.type == MATERIAL_BLUE) {
-        p.vel_misc.x += nx * Config::RED_BLUE_RESPONSE * 0.02f;
-        p.vel_misc.y += ny * Config::RED_BLUE_RESPONSE * 0.02f;
+        p.vx += nx * Config::RED_BLUE_RESPONSE * 0.02f;
+        p.vy += ny * Config::RED_BLUE_RESPONSE * 0.02f;
         p.energy = 0.45f;
     } else if (p.type == MATERIAL_RED && q.type == MATERIAL_RED) {
-        p.vel_misc.x += nx * Config::RED_RED_RESPONSE * 0.02f;
-        p.vel_misc.y += ny * Config::RED_RED_RESPONSE * 0.02f;
+        p.vx += nx * Config::RED_RED_RESPONSE * 0.02f;
+        p.vy += ny * Config::RED_RED_RESPONSE * 0.02f;
         p.energy = 0.25f;
     }
 }
 
 __device__ void integrar_y_rebotar_cuda(Particle& p, float dt) {
-    p.pos_radius.x += p.vel_misc.x * dt;
-    p.pos_radius.y += p.vel_misc.y * dt;
-    p.vel_misc.x *= p.vel_misc.z;
-    p.vel_misc.y *= p.vel_misc.z;
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.vx *= p.damping;
+    p.vy *= p.damping;
 
-    const float radius = p.pos_radius.z;
+    const float radius = p.radius;
 
-    if (p.pos_radius.x < Config::WORLD_MIN_X + radius) {
-        p.pos_radius.x = Config::WORLD_MIN_X + radius;
-        p.vel_misc.x *= -Config::WALL_BOUNCE;
+    if (p.x < Config::WORLD_MIN_X + radius) {
+        p.x = Config::WORLD_MIN_X + radius;
+        p.vx *= -Config::WALL_BOUNCE;
     }
-    if (p.pos_radius.x > Config::WORLD_MAX_X - radius) {
-        p.pos_radius.x = Config::WORLD_MAX_X - radius;
-        p.vel_misc.x *= -Config::WALL_BOUNCE;
+    if (p.x > Config::WORLD_MAX_X - radius) {
+        p.x = Config::WORLD_MAX_X - radius;
+        p.vx *= -Config::WALL_BOUNCE;
     }
-    if (p.pos_radius.y < Config::WORLD_MIN_Y + radius) {
-        p.pos_radius.y = Config::WORLD_MIN_Y + radius;
-        p.vel_misc.y *= -Config::WALL_BOUNCE;
+    if (p.y < Config::WORLD_MIN_Y + radius) {
+        p.y = Config::WORLD_MIN_Y + radius;
+        p.vy *= -Config::WALL_BOUNCE;
     }
-    if (p.pos_radius.y > Config::WORLD_MAX_Y - radius) {
-        p.pos_radius.y = Config::WORLD_MAX_Y - radius;
-        p.vel_misc.y *= -Config::WALL_BOUNCE;
+    if (p.y > Config::WORLD_MAX_Y - radius) {
+        p.y = Config::WORLD_MAX_Y - radius;
+        p.vy *= -Config::WALL_BOUNCE;
     }
 
     p.energy = fmaxf(0.0f, p.energy - dt);
-    if (p.energy <= 0.0f) {
-        p.state = STATE_NORMAL;
-    }
 
     limitar_velocidad_cuda(p);
 }
@@ -386,9 +379,9 @@ __global__ void build_render_particles_cuda(const Particle* particles,
     }
 
     const Particle p = particles[i];
-    renderParticles[i].x = p.pos_radius.x;
-    renderParticles[i].y = p.pos_radius.y;
-    renderParticles[i].radius = p.pos_radius.z;
+    renderParticles[i].x = p.x;
+    renderParticles[i].y = p.y;
+    renderParticles[i].radius = p.radius;
     renderParticles[i].type = p.type;
     renderParticles[i].energy = p.energy;
 }

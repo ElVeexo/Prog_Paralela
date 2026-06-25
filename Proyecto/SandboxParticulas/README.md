@@ -174,7 +174,6 @@ include/particles.hpp
 Ahi se definen:
 
 - `MaterialType`: rojo, verde y azul.
-- `ParticleState`: normal o alterada.
 - `Particle`: datos de simulacion.
 - `RenderParticle`: datos enviados a OpenGL.
 - `crear_particulas`: inicializacion comun.

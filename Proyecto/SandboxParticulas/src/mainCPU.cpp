@@ -197,7 +197,7 @@ int main() {
         );
 
         if (!input.paused) {
-            update_cpu_naive(particlesIn, particlesOut, Config::FIXED_DT);
+            update_cpu_secuencial(particlesIn, particlesOut, Config::FIXED_DT);
             std::swap(particlesIn, particlesOut);
         }
 

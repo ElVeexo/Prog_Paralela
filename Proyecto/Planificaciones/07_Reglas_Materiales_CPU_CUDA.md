@@ -43,10 +43,10 @@ No se implementa:
 Se conserva la deteccion actual:
 
 ```cpp
-const float dx = p.pos_radius.x - q.pos_radius.x;
-const float dy = p.pos_radius.y - q.pos_radius.y;
+const float dx = p.x - q.x;
+const float dy = p.y - q.y;
 const float dist2 = dx * dx + dy * dy;
-const float minDist = p.pos_radius.z + q.pos_radius.z;
+const float minDist = p.radius + q.radius;
 
 if (dist2 <= 0.000001f || dist2 >= minDist * minDist) {
     return;
@@ -74,13 +74,15 @@ de las reglas:
 
 ```cpp
 constexpr float MIN_PARTICLE_SPEED = 0.015f;
-constexpr float MAX_PARTICLE_SPEED = 1.50f;
+constexpr float MAX_PARTICLE_SPEED = 0.32f;
 
-constexpr float GREEN_GREEN_SPEEDUP = 2.00f;
-constexpr float GREEN_BLUE_SPEEDUP = 1.25f;
-constexpr float GREEN_RED_SPEEDUP = 1.50f;
+constexpr float GREEN_GREEN_SPEEDUP = 1.02f;
+constexpr float GREEN_BLUE_SPEEDUP = 1.04f;
+constexpr float GREEN_RED_SPEEDUP = 1.08f;
 
-constexpr float BLUE_VELOCITY_TRANSFER = 1.00f;
+constexpr float BLUE_VELOCITY_TRANSFER = 0.04f;
+constexpr float BLUE_COLLISION_DAMPING = 0.92f;
+constexpr float BLUE_NORMAL_PUSH = 0.006f;
 
 constexpr float RED_GREEN_RESPONSE = 0.35f;
 constexpr float RED_BLUE_RESPONSE = 0.50f;
@@ -93,6 +95,8 @@ Interpretacion:
 - `MAX_PARTICLE_SPEED`: limite superior para evitar explosiones numericas.
 - `GREEN_*`: multiplicadores de velocidad para la particula verde segun con quien choque.
 - `BLUE_VELOCITY_TRANSFER`: cuanto de la velocidad de la otra particula recibe la azul.
+- `BLUE_COLLISION_DAMPING`: cuanto conserva la azul despues de cada choque.
+- `BLUE_NORMAL_PUSH`: empuje normal pequeno para separarla de la otra particula.
 - `RED_*_RESPONSE`: cuanto reacciona la roja ante cada material; valores bajos porque es pesada.
 
 Los valores pueden ajustarse despues de probar visualmente.
@@ -104,35 +108,32 @@ La verde es la de menor peso. La idea es que gane velocidad al chocar.
 Reglas propuestas:
 
 ```text
-verde vs verde -> velocidad x2.00
-verde vs azul  -> velocidad x1.25
-verde vs roja  -> velocidad x1.50
+verde vs verde -> velocidad x1.02
+verde vs azul  -> velocidad x1.04
+verde vs roja  -> velocidad x1.08
 ```
 
 Pseudocodigo CPU:
 
 ```cpp
 if (p.type == MATERIAL_GREEN && q.type == MATERIAL_GREEN) {
-    p.vel_misc.x *= Config::GREEN_GREEN_SPEEDUP;
-    p.vel_misc.y *= Config::GREEN_GREEN_SPEEDUP;
-    p.vel_misc.x += nx * 0.02f;
-    p.vel_misc.y += ny * 0.02f;
+    p.vx *= Config::GREEN_GREEN_SPEEDUP;
+    p.vy *= Config::GREEN_GREEN_SPEEDUP;
+    p.vx += nx * 0.02f;
+    p.vy += ny * 0.02f;
     p.energy = 0.8f;
-    p.state = STATE_ALTERED;
 } else if (p.type == MATERIAL_GREEN && q.type == MATERIAL_BLUE) {
-    p.vel_misc.x *= Config::GREEN_BLUE_SPEEDUP;
-    p.vel_misc.y *= Config::GREEN_BLUE_SPEEDUP;
-    p.vel_misc.x += nx * 0.02f;
-    p.vel_misc.y += ny * 0.02f;
+    p.vx *= Config::GREEN_BLUE_SPEEDUP;
+    p.vy *= Config::GREEN_BLUE_SPEEDUP;
+    p.vx += nx * 0.02f;
+    p.vy += ny * 0.02f;
     p.energy = 0.7f;
-    p.state = STATE_ALTERED;
 } else if (p.type == MATERIAL_GREEN && q.type == MATERIAL_RED) {
-    p.vel_misc.x *= Config::GREEN_RED_SPEEDUP;
-    p.vel_misc.y *= Config::GREEN_RED_SPEEDUP;
-    p.vel_misc.x += nx * 0.03f;
-    p.vel_misc.y += ny * 0.03f;
+    p.vx *= Config::GREEN_RED_SPEEDUP;
+    p.vy *= Config::GREEN_RED_SPEEDUP;
+    p.vx += nx * 0.03f;
+    p.vy += ny * 0.03f;
     p.energy = 1.0f;
-    p.state = STATE_ALTERED;
 }
 ```
 
@@ -159,10 +160,10 @@ Pseudocodigo CPU:
 
 ```cpp
 else if (p.type == MATERIAL_BLUE) {
-    p.vel_misc.x += q.vel_misc.x * Config::BLUE_VELOCITY_TRANSFER;
-    p.vel_misc.y += q.vel_misc.y * Config::BLUE_VELOCITY_TRANSFER;
-    p.vel_misc.x += nx * 0.02f;
-    p.vel_misc.y += ny * 0.02f;
+    p.vx += q.vx * Config::BLUE_VELOCITY_TRANSFER;
+    p.vy += q.vy * Config::BLUE_VELOCITY_TRANSFER;
+    p.vx += nx * 0.02f;
+    p.vy += ny * 0.02f;
     p.energy = 0.6f;
 }
 ```
@@ -189,16 +190,16 @@ Pseudocodigo CPU:
 
 ```cpp
 else if (p.type == MATERIAL_RED && q.type == MATERIAL_GREEN) {
-    p.vel_misc.x += nx * Config::RED_GREEN_RESPONSE * 0.02f;
-    p.vel_misc.y += ny * Config::RED_GREEN_RESPONSE * 0.02f;
+    p.vx += nx * Config::RED_GREEN_RESPONSE * 0.02f;
+    p.vy += ny * Config::RED_GREEN_RESPONSE * 0.02f;
     p.energy = 0.35f;
 } else if (p.type == MATERIAL_RED && q.type == MATERIAL_BLUE) {
-    p.vel_misc.x += nx * Config::RED_BLUE_RESPONSE * 0.02f;
-    p.vel_misc.y += ny * Config::RED_BLUE_RESPONSE * 0.02f;
+    p.vx += nx * Config::RED_BLUE_RESPONSE * 0.02f;
+    p.vy += ny * Config::RED_BLUE_RESPONSE * 0.02f;
     p.energy = 0.45f;
 } else if (p.type == MATERIAL_RED && q.type == MATERIAL_RED) {
-    p.vel_misc.x += nx * Config::RED_RED_RESPONSE * 0.02f;
-    p.vel_misc.y += ny * Config::RED_RED_RESPONSE * 0.02f;
+    p.vx += nx * Config::RED_RED_RESPONSE * 0.02f;
+    p.vy += ny * Config::RED_RED_RESPONSE * 0.02f;
     p.energy = 0.25f;
 }
 ```
@@ -224,29 +225,29 @@ CPU:
 
 ```cpp
 inline void limitar_velocidad_cpu(Particle& p) {
-    const float vx = p.vel_misc.x;
-    const float vy = p.vel_misc.y;
+    const float vx = p.vx;
+    const float vy = p.vy;
     const float speed2 = vx * vx + vy * vy;
     const float minSpeed = Config::MIN_PARTICLE_SPEED;
     const float maxSpeed = Config::MAX_PARTICLE_SPEED;
 
     if (speed2 < minSpeed * minSpeed) {
         if (speed2 <= 0.000001f) {
-            p.vel_misc.x = minSpeed;
-            p.vel_misc.y = 0.0f;
+            p.vx = minSpeed;
+            p.vy = 0.0f;
             return;
         }
 
         const float invSpeed = 1.0f / std::sqrt(speed2);
-        p.vel_misc.x = vx * invSpeed * minSpeed;
-        p.vel_misc.y = vy * invSpeed * minSpeed;
+        p.vx = vx * invSpeed * minSpeed;
+        p.vy = vy * invSpeed * minSpeed;
         return;
     }
 
     if (speed2 > maxSpeed * maxSpeed) {
         const float invSpeed = 1.0f / std::sqrt(speed2);
-        p.vel_misc.x = vx * invSpeed * maxSpeed;
-        p.vel_misc.y = vy * invSpeed * maxSpeed;
+        p.vx = vx * invSpeed * maxSpeed;
+        p.vy = vy * invSpeed * maxSpeed;
     }
 }
 ```
@@ -255,29 +256,29 @@ CUDA:
 
 ```cpp
 __device__ void limitar_velocidad_cuda(Particle& p) {
-    const float vx = p.vel_misc.x;
-    const float vy = p.vel_misc.y;
+    const float vx = p.vx;
+    const float vy = p.vy;
     const float speed2 = vx * vx + vy * vy;
     const float minSpeed = Config::MIN_PARTICLE_SPEED;
     const float maxSpeed = Config::MAX_PARTICLE_SPEED;
 
     if (speed2 < minSpeed * minSpeed) {
         if (speed2 <= 0.000001f) {
-            p.vel_misc.x = minSpeed;
-            p.vel_misc.y = 0.0f;
+            p.vx = minSpeed;
+            p.vy = 0.0f;
             return;
         }
 
         const float invSpeed = rsqrtf(speed2);
-        p.vel_misc.x = vx * invSpeed * minSpeed;
-        p.vel_misc.y = vy * invSpeed * minSpeed;
+        p.vx = vx * invSpeed * minSpeed;
+        p.vy = vy * invSpeed * minSpeed;
         return;
     }
 
     if (speed2 > maxSpeed * maxSpeed) {
         const float invSpeed = rsqrtf(speed2);
-        p.vel_misc.x = vx * invSpeed * maxSpeed;
-        p.vel_misc.y = vy * invSpeed * maxSpeed;
+        p.vx = vx * invSpeed * maxSpeed;
+        p.vy = vy * invSpeed * maxSpeed;
     }
 }
 ```
@@ -293,7 +294,6 @@ En CPU, dentro de `integrar_y_rebotar_cpu`, al final:
 ```cpp
 p.energy = std::max(0.0f, p.energy - dt);
 if (p.energy <= 0.0f) {
-    p.state = STATE_NORMAL;
 }
 
 limitar_velocidad_cpu(p);
@@ -304,7 +304,6 @@ En CUDA, dentro de `integrar_y_rebotar_cuda`, al final:
 ```cpp
 p.energy = fmaxf(0.0f, p.energy - dt);
 if (p.energy <= 0.0f) {
-    p.state = STATE_NORMAL;
 }
 
 limitar_velocidad_cuda(p);
