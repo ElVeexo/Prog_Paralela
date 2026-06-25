@@ -50,7 +50,7 @@
 
     \vspace{0.3cm}
 
-    Aunque CPU y CUDA mantienen complejidad $O(N^2)$, la GPU puede repartir el trabajo entre miles de hilos.
+    Aunque CPU y CUDA mantienen complejidad $O(N^2)$, la GPU puede repartir el trabajo entre miles de hebras.
 \end{frame}
 
 \begin{frame}{Arquitectura del proyecto}
@@ -69,7 +69,7 @@
         \begin{column}{0.48\textwidth}
             \textbf{Versión CUDA}
             \begin{itemize}
-                \item Un hilo por partícula.
+                \item Una hebra por partícula.
                 \item Doble buffer en GPU.
                 \item Kernel tiled $O(N^2)$.
                 \item Uso de memoria compartida \texttt{\_\_shared\_\_}.
@@ -101,13 +101,13 @@ for (int i = 0; i < count; ++i) {
 
     \begin{itemize}
         \item Es simple y directa.
-        \item No usa hilos ni paralelismo explícito.
+        \item No usa hebras ni paralelismo explícito.
         \item Aumentar $N$ impacta muy fuerte en FPS.
     \end{itemize}
 \end{frame}
 
 \begin{frame}[fragile]{CUDA tiled}
-    En CUDA, cada hilo procesa una partícula:
+    En CUDA, cada hebra procesa una partícula:
 
 \begin{verbatim}
 __shared__ Particle tile[Config::LOCAL_SIZE];
@@ -126,7 +126,7 @@ for (int tileStart = 0; tileStart < N; tileStart += blockDim.x) {
 
     \begin{itemize}
         \item Se reutilizan bloques de partículas en memoria compartida.
-        \item Cada hilo escribe solamente su propia partícula.
+        \item Cada hebra escribe solamente su propia partícula.
         \item Se evita una condición de carrera sobre el estado global.
     \end{itemize}
 \end{frame}
@@ -164,7 +164,7 @@ for (int tileStart = 0; tileStart < N; tileStart += blockDim.x) {
     Equipo usado:
 
     \begin{itemize}
-        \item CPU: Intel Core i5-11400F, 6 núcleos / 12 hilos.
+        \item CPU: Intel Core i5-11400F, 6 núcleos / 12 hebras.
         \item GPU: NVIDIA GeForce RTX 4060, 3072 núcleos CUDA.
     \end{itemize}
 \end{frame}
